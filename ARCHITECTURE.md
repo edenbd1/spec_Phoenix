@@ -1,1482 +1,1125 @@
-# xYield Notes — Architecture & Economic Model
+# xYield Protocol — Architecture Complete
 
-## Vue d'ensemble
-
-xYield Notes est un protocole de structured products peer-to-peer sur xStocks (tokenized equities by Kraken/Backed). Le produit phare : des **autocalls (callable yield notes)** sur paniers xStocks, avec physical delivery.
-
-**Innovation clé** : premier autocall peer-to-peer onchain. Pas de banque, pas de boîte noire. L'investisseur et l'underwriter sont connectés directement via smart contracts.
+> Architecture calquee sur PiggyBank (piggybank.fi) — le meilleur projet xStocks.
+> Meme strategie (funding rate arb), adaptee a l'EVM, avec autocall par-dessus.
+> Hackathon xStocks Market Open — 31 mars - 2 avril 2026, Cannes.
 
 ---
 
-## Le Two-Sided Model
+## 1. PiggyBank → xYield : le mapping
 
-### Côté A — Note Buyer (l'investisseur)
-- Dépose USDC
-- Gagne un coupon amélioré (8-15% annualisé)
-- Risque : si le sous-jacent a touché la barrière knock-in pendant la vie du produit ET que le prix final à maturité est sous le prix initial → physical delivery de xStocks à perte
-- Si knock-in activé mais prix final ≥ initial → principal remboursé (pas de perte)
-- **Économiquement = il vend un put option sur xStocks**
+### Ce que PiggyBank fait (Solana)
 
-### Côté B — Underwriter (le LP)
-- Dépose USDC dans le pool d'underwriting
-- Son capital **finance les coupons** de l'investisseur (= il paie la prime du put)
-- Si knock-in se produit ET prix final < initial → il capture le spread (notionnel - coût des xStocks livrés)
-- **Économiquement = il achète un put option sur xStocks**
-- Son capital idle earn du yield sur Euler en attendant
+```
+Utilisateur depose xStocks/USDC
+    → recoit pbTokens (yield-bearing)
+    → Protocol collateralise sur Kamino/Loopscale
+    → Emprunte stablecoins
+    → Short perps equivalents sur Drift
+    → Position delta-neutral + capture funding rate
+    → 48h epochs pour NAV + withdrawals
+    → APYs : USDC 20.84%, SPYx 7.18%
+```
 
-### Pourquoi le coupon est SUPÉRIEUR au lending
+### Ce que xYield fait (Ethereum/Arbitrum)
 
-En TradFi, le coupon amélioré d'un autocall ne vient PAS du lending. Il vient de la **prime du put implicite** que l'investisseur vend. L'investisseur accepte un risque réel (recevoir des actions dépréciées si crash) et est payé pour ce risque.
+```
+Utilisateur depose USDC
+    → recoit xyUSDC (ERC-4626 share token)
+    → Autocall Phoenix cree (NoteToken ERC-1155)
+    → Protocol achete xStocks spot via 1inch
+    → Collateralise xStocks sur Euler EVK
+    → Short xStocks perps sur Aster DEX
+    → Position delta-neutral + capture funding rate (= le hedge)
+    → 48h epochs pour NAV + rebalancing
+    → Le hedge RAPPORTE au lieu de couter
+```
 
-Dans notre modèle DeFi :
-- Le coupon EST la prime du put, payée par l'underwriter à l'investisseur
-- L'underwriter paie cette prime parce qu'il PROFITE si le crash se produit
-- C'est un dérivé zero-sum, fully collateralized, peer-to-peer
-- La banque est supprimée — on connecte directement les deux côtés
+### Mapping composant par composant
+
+| PiggyBank (Solana) | xYield (EVM) | Role |
+|---|---|---|
+| pbTokens | xyUSDC (ERC-4626) | Share token yield-bearing |
+| Kamino / Loopscale | **Euler Finance EVK** | Lending + collateral |
+| Drift DEX | **Aster DEX** | Perps (stock perps on-chain) |
+| 48h epochs | 48h epochs | NAV update + rebalancing |
+| Risk mgmt (TP/SL) | Chainlink Automation | Automated risk management |
+| — | Autocall Engine | Produit structure par-dessus |
+| — | Chainlink Data Streams | Prix xStocks sub-second |
+| — | 1inch | Swap xStocks spot |
 
 ---
 
-## Comment ça marche en TradFi (pour référence)
+## 2. Pourquoi Aster DEX (pas Nado)
 
-Quand SocGen/BNP émet un autocall :
-1. La banque reçoit le capital de l'investisseur
-2. Le desk structuration **price les options embedded** (put knock-in, barrière autocall, coupons digitaux)
-3. Le desk trading **delta-hedge dynamiquement** — achète ~30-50% du notionnel en actions, ajuste quotidiennement selon les Greeks
-4. L'argent va dans le **bilan de la banque** (trésorerie générale)
-5. Le coupon est financé par la **prime du put implicite**
-6. La banque NE détient PAS 100% du sous-jacent — elle delta-hedge partiellement
+### Le probleme Nado
 
-**Notre modèle DeFi est plus transparent et plus safe :**
-- Pas de risque émetteur (fully collateralized onchain)
-- Pas de boîte noire (tout dans le smart contract)
-- Settlement instant (pas T+2)
-- Physical delivery de vrais tokens xStocks
+Nado (sur Ink/Kraken L2) n'a **que des perps crypto** (ETH, BTC, SOL...).
+Les equity perps (NVDA, TSLA, etc.) sont "coming soon" — pas encore live.
+**On ne peut pas faire de funding rate arb sur xStocks via Nado.**
 
----
+### Aster DEX — stock perps on-chain
 
-## Cash Flows — Exemples Concrets
+Aster DEX est deploye sur **Ethereum mainnet** et **Arbitrum** avec des perps sur actions :
 
-### Setup
-```
-Note : NVDAx Autocall, 1 an, observations trimestrielles
-Knock-in barrier : 70% | Autocall barrier : 100%
-Coupon : 3%/trimestre (12% annualisé)
-Investisseur : $10,000 USDC
-Underwriter :  $2,000 USDC
-Pool total :   $12,000 → Euler Finance (5% APY)
-```
+| Stock Perp | Disponible | Fees |
+|---|---|---|
+| NVDA | ✅ | **0% (promo)** |
+| TSLA | ✅ | **0% (promo)** |
+| AAPL | ✅ | Standard |
+| META | ✅ | Standard |
+| AMZN | ✅ | Standard |
+| GOOGL | ✅ | Standard |
+| MSFT | ✅ | Standard |
 
-### Scénario 1 — Autocall au Q2 (NVDAx ≥ 100% à la 2ème observation)
-```
-Pool au Q2 : $12,000 + $300 yield (5% × 6 mois) - $600 coupons = $11,700
-Investisseur reçoit : $10,000 + dernière coupon (déjà payé)
-Underwriter récupère : $11,700 - $10,000 = $1,700
-Underwriter P&L : $1,700 - $2,000 = -$300 (-15%)
-→ Autocall rapide = petite perte underwriter (peu de coupons payés)
-```
+**Smart contracts :**
+- Ethereum : `0x604DD02d620633Ae427888d41bfd15e38483736E`
+- Arbitrum : `0x9E36CB86a159d479cEd94Fa05036f235Ac40E1d5`
 
-### Scénario 2 — Knock-in activé, maturité avec NVDAx à 55%
-```
-Le flag knock-in a été activé pendant la vie du produit (prix < 70% à une obs)
-À maturité : prix final = 55% < prix initial → PHYSICAL DELIVERY
+**Specs :**
+- Leverage : jusqu'a 50x
+- Funding rate : toutes les 8h (comme Drift/Binance)
+- On-chain, composable, smart contract interactions possibles
 
-Pool maturité : $12,000 + $600 yield - $1,200 coupons = $11,400
-Acheter 100 NVDAx à $55 via 1inch : $5,500
-Livrer à l'investisseur (physical delivery)
-Underwriter récupère : $11,400 - $5,500 = $5,900
-Underwriter P&L : +$3,900 (+195%)
-```
+### Pourquoi c'est parfait
 
-### Scénario 3 — Knock-in activé MAIS prix remonte à maturité (NVDAx à 105%)
-```
-Le flag knock-in a été activé au Q2 (prix à 68%)
-Mais à maturité, NVDAx est remonté à 105% → prix final ≥ initial
-→ PAS DE PHYSICAL DELIVERY malgré le knock-in !
-
-Pool maturité : $11,400
-Rembourser investisseur : $10,000 (principal intact)
-Underwriter récupère : $1,400
-Underwriter P&L : -$600 (-30%)
-
-Note : en TradFi, knock-in ≠ perte automatique. L'investisseur ne perd
-que si knock-in ET prix final < initial. C'est ce qui rend les autocalls
-attractifs — la barrière peut être touchée et le stock remonter.
-```
-
-### Scénario 4 — Maturité sans knock-in (NVDAx à 85%)
-```
-Prix jamais descendu sous 70% → pas de knock-in
-Prix jamais remonté au-dessus de 100% → pas d'autocall
-
-Pool maturité : $11,400
-Rembourser investisseur : $10,000 + dernier coupon
-Underwriter récupère : $1,400
-Underwriter P&L : -$600 (-30%)
-```
-
-### Espérance underwriter (NVDA, vol historique, modèle complet)
-```
-Avec les probabilités réalistes pour NVDA (vol ~35%, 1 an) :
-
-P(autocall Q1) ≈ 20%   → UW P&L ≈ -$150     (1 coupon payé)
-P(autocall Q2) ≈ 12%   → UW P&L ≈ -$300     (2 coupons)
-P(autocall Q3) ≈ 8%    → UW P&L ≈ -$450     (3 coupons)
-P(autocall Q4) ≈ 5%    → UW P&L ≈ -$600     (4 coupons)
-P(mat, no KI)  ≈ 40%   → UW P&L ≈ -$600     (4 coupons)
-P(KI + loss)   ≈ 10%   → UW P&L ≈ +$3,900   (capture le spread)
-P(KI + recover)≈ 5%    → UW P&L ≈ -$600     (KI mais stock remonte)
-
-E[P&L] = 0.20×(-150) + 0.12×(-300) + 0.08×(-450) + 0.05×(-600)
-         + 0.40×(-600) + 0.10×(3,900) + 0.05×(-600)
-       = -30 -36 -36 -30 -240 +390 -30
-       = -$12
-
-→ Proche de zero-sum avec un léger edge pour l'investisseur.
-Le taux de coupon doit s'ajuster pour que l'underwriter soit à EV ≈ 0.
-C'est exactement ce que fait le fair coupon solver (Monte Carlo CRE).
-
-Payoff asymétrique : -30% max si pas de crash, +195% si crash réel
-→ Attractif pour hedgers, vol traders, tail risk funds
-```
+PiggyBank utilise Drift pour les perps sur Solana.
+Aster DEX est le **Drift de l'EVM pour les stock perps**.
+C'est exactement le meme role — mais sur Ethereum/Arbitrum avec les memes xStocks.
 
 ---
 
-## Qui sont les underwriters ?
+## 3. Chain de deploiement : Ethereum ou Arbitrum
 
-| Type | Motivation | Rationalité |
-|------|-----------|-------------|
-| **Hedger xStocks** | Détient NVDAx, veut se protéger contre crash | Profit knock-in compense pertes stock |
-| **Vol trader** | Pense que le stock est plus volatile que le coupon implique | EV positive si vol réelle > vol implicite |
-| **Bearish speculator** | Veut du short levier sans perps | Levier 5:1 en cas de crash, perte max = dépôt |
-| **Tail risk fund** | Earn Euler yield en attendant un black swan | Capital productif + payoff massif sur crash |
+### Decision
+
+| Critere | Ethereum | Arbitrum | Ink (Kraken L2) |
+|---|---|---|---|
+| Euler Finance | ✅ | ✅ | ❌ (pas deploye) |
+| Aster DEX (stock perps) | ✅ | ✅ | ❌ |
+| Chainlink Data Streams | ✅ | ✅ | ❓ |
+| 1inch | ✅ | ✅ | ❌ |
+| xStocks (ERC-20) | ✅ | Via bridge | Via bridge |
+| Gas cost | Eleve | Faible | Faible |
+
+**Recommandation : Arbitrum** (ou Ethereum mainnet si gas est acceptable)
+- Tous les composants sont natifs (Euler + Aster DEX + Chainlink + 1inch)
+- Gas bas = plus de trades, rebalancing frequent possible
+- xStocks ERC-20 disponibles via bridge depuis Ethereum
+
+**Note hackathon :** Ink perd des points "xStocks Relevance" mais c'est impossible d'y deployer sans Aster DEX et Euler. L'innovation technique compense largement.
 
 ---
 
-## Auto-pricing par le marché
+## 4. Les 3 modules
 
-Le coupon n'est pas fixé par le protocole — il émerge du marché :
-- Beaucoup d'underwriters → coupons montent (compétition)
-- Beaucoup d'investisseurs → coupons baissent
-- Sous-jacent volatile (TSLAx) → coupons plus élevés naturellement
-- Sous-jacent stable (SPYx) → coupons plus bas
-
-Identique au pricing d'options en TradFi, sans la banque.
-
----
-
-## Delta-Hedging : Répliquer le Desk de Structuration
-
-### Pourquoi la banque delta-hedge (et pourquoi on doit le faire)
-
-En TradFi, la banque ne garde PAS l'argent en cash. Elle **delta-hedge dynamiquement** pour 3 raisons :
-
-**1. Lisser le coût d'acquisition**
-Au lieu d'acheter tout à un seul prix (inception ou knock-in), le trader achète progressivement. Le coût moyen est entre le prix initial et le prix de knock-in.
-
-**2. Gamma P&L (profit de rebalancing)**
-Le rebalancing crée du profit : acheter bas, vendre haut. Si le stock oscille, chaque rebalancing capture du **gamma scalping** — un des P&L majeurs des desks de structuration.
-
-**3. Réduire le risque de gap**
-Si on détient 0 xStocks et qu'un flash crash se produit, on doit tout acheter d'un coup dans un marché en panique. Avec un hedge partiel, on a déjà une partie de la position.
-
-### Comment la banque fait exactement
+### Module 1 — USDC Vault (ERC-4626)
 
 ```
-JOUR 0 — Émission ($10M notional, NVDAx à $100, KI 70%)
-  Delta du put knock-in ≈ -0.25
-  → Acheter 25,000 shares ($2.5M)
-  → $7.5M en cash/money market
-
-JOUR 30 — NVDAx à $110 (loin de la barrière)
-  Nouveau delta ≈ -0.15
-  → VENDRE 10,000 shares à $110 (+$1.1M cash)
-  → Gamma P&L: +$100k (acheté à $100, vendu à $110)
-
-JOUR 90 — NVDAx à $80 (se rapproche de la barrière)
-  Nouveau delta ≈ -0.45
-  → ACHETER 30,000 shares à $80 (-$2.4M cash)
-
-JOUR 180 — NVDAx à $72 (proche du knock-in!)
-  Nouveau delta ≈ -0.80 (gamma élevé)
-  → ACHETER 35,000 shares à $72
-
-KNOCK-IN à $69 — Delta → -1.0
-  → Compléter à 100,000 shares
-  → Prix moyen d'achat ≈ $82 (pas $100, pas $69)
-  → Livraison : 100,000 NVDAx → investisseur
+┌─────────────────────────────────────────────────────────────┐
+│                    XYieldVault.sol                           │
+│                    (ERC-4626)                                │
+│                                                             │
+│  deposit(USDC) → mint xyUSDC shares                        │
+│  withdraw(xyUSDC) → burn shares, return USDC + yield        │
+│                                                             │
+│  Capital allocation :                                       │
+│  ├── 40-60% → Euler Finance (lending USDC, 3-5% safe)      │
+│  ├── 20-40% → Funding Rate Arb Engine                       │
+│  │            (buy xStocks → short perps Aster → 8-20%)     │
+│  └── 10-20% → Reserve liquidite (coupons + withdrawals)     │
+│                                                             │
+│  Epoch system : 48h (calque PiggyBank)                      │
+│  ├── T+0h : snapshot NAV                                    │
+│  ├── T+0-24h : process withdrawals                          │
+│  ├── T+24-48h : rebalance positions                         │
+│  └── T+48h : new epoch, updated share price                 │
+│                                                             │
+│  Yield distribution :                                       │
+│  ├── 80% → xyUSDC holders (share price appreciation)        │
+│  └── 20% → protocol treasury (performance fee)              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Notre version DeFi : le Delta Hedge Engine
+### Module 2 — Autocall Engine
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                  DELTA HEDGE ENGINE                       │
-│                                                           │
-│  Pour chaque note active :                               │
-│                                                           │
-│  1. Calculer le delta du put knock-in                    │
-│     delta = f(spot, barrier, vol, time_to_maturity)      │
-│                                                           │
-│  2. Position cible = |delta| × notional_shares           │
-│     Ex: delta=0.30, notional=100 shares → target=30      │
-│                                                           │
-│  3. Rebalancer via 1inch si écart > seuil (5%)           │
-│     position < target → BUY xStocks                      │
-│     position > target → SELL xStocks                     │
-│                                                           │
-│  4. Trigger : observation dates + si prix bouge >5%      │
-│     Déclenché par Chainlink CRE                          │
-│                                                           │
-│  Cash non-hedgé = Euler (yield)                          │
-│  xStocks hedgé = Vault (détention directe)               │
-└──────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                  AutocallEngine.sol                          │
+│                                                             │
+│  Phoenix Autocall — Worst-of 3 xStocks                      │
+│                                                             │
+│  Parametres produit :                                        │
+│  ├── Basket : NVDAx / METAx / TSLAx (worst-of)             │
+│  ├── Coupon : 10-14% ann (1% par mois)                      │
+│  ├── Coupon barrier : 65-70%                                │
+│  ├── Autocall trigger : 100% (step-down 2%/obs)             │
+│  ├── KI barrier : 50% (European, maturite seulement)        │
+│  ├── Memory coupon : oui                                    │
+│  ├── Observations : mensuelles                              │
+│  ├── Maturite : 6 mois                                      │
+│  └── Settlement : physical delivery (xStocks via 1inch)     │
+│                                                             │
+│  Lifecycle :                                                │
+│  ├── createNote() → NoteToken ERC-1155 mint                 │
+│  ├── observe() → Chainlink Automation trigger mensuel       │
+│  │   ├── getPrices() → Chainlink Data Streams               │
+│  │   ├── checkCoupon() → worst ≥ coupon barrier?            │
+│  │   ├── checkAutocall() → worst ≥ autocall trigger?        │
+│  │   └── checkKI() → worst < KI? (maturite seulement)      │
+│  ├── payCoupon() → USDC transfer au holder                  │
+│  ├── autocall() → principal + coupons → holder              │
+│  ├── settle() → physical delivery via 1inch swap            │
+│  └── autoRoll() → ERC-7579 module, nouvelle note auto       │
+│                                                             │
+│  Pricing :                                                  │
+│  ├── Embedded fee : 1-3% (protocole)                        │
+│  ├── Origination fee : 0.3% (protocole)                     │
+│  └── Auto-roll fee : 0.1% par roll                          │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Cash flows complets avec delta-hedge
+### Module 3 — Hedge & Yield Engine (la strat PiggyBank)
 
 ```
-CRÉATION — NVDAx à $100, notional 100 shares
-  Investisseur : $10,000 | Underwriter : $2,000 | Total : $12,000
-  Delta initial ≈ 0.30
-  → Acheter 30 NVDAx à $100 = $3,000 via 1inch
-  → Euler deposit : $9,000
-  [30 NVDAx ($3,000) | $9,000 Euler]
-
-Q1 — NVDAx à $110 → Delta ≈ 0.20
-  → VENDRE 10 NVDAx à $110 = +$1,100
-  → Gamma P&L : 10 × ($110-$100) = +$100
-  → Payer coupon : $300
-  [20 NVDAx ($2,200) | $9,812 Euler]
-
-Q2 — NVDAx à $85 → Delta ≈ 0.45
-  → ACHETER 25 NVDAx à $85 = -$2,125
-  → Payer coupon : $300
-  [45 NVDAx ($3,825) | $7,499 Euler]
-
-Q3 — NVDAx à $72 → Delta ≈ 0.75
-  → ACHETER 30 NVDAx à $72 = -$2,160
-  → Payer coupon : $300
-  [75 NVDAx ($5,400) | $5,146 Euler]
-
-Q4 KNOCK-IN — NVDAx à $65 → Delta → 1.0
-  → ACHETER 25 NVDAx à $65 = -$1,625
-  → Payer coupon : $300
-
-  ÉTAT FINAL :
-  [100 NVDAx ($6,500) | $3,321 Euler]
-
-  LIVRAISON :
-  100 NVDAx → Investisseur (valeur $6,500)
-  $3,321 → Underwriter pool
-
-  BILAN :
-  Coût total 100 NVDAx : 30×$100 + 25×$85 + 30×$72 + 25×$65 - 10×$110
-                        = $3,000 + $2,125 + $2,160 + $1,625 - $1,100
-                        = $7,810 (vs $10,000 si acheté au début, vs $6,500 si acheté au KI)
-
-  Investisseur : $6,500 xStocks + $1,200 coupons = $7,700 / $10,000 = -23%
-  Underwriter : $3,321 - $2,000 = +$1,321 profit (+66%)
-```
-
-### Comparaison avec vs sans delta-hedge
-
-```
-                        SANS HEDGE         AVEC DELTA-HEDGE
-─────────────────────────────────────────────────────────────
-xStocks détenus         0 (sauf delivery)  30-100% du notional
-xStocks Relevance       ★★★☆☆              ★★★★★
-Risque de slippage      ÉLEVÉ (tout d'un   FAIBLE (75%+ déjà
-à la livraison          coup au KI)        détenu au KI)
-Gamma P&L               $0                 +$100 à +$500/note
-Euler yield             MAX (tout USDC)    RÉDUIT (partie xStocks)
-Transactions 1inch      1-2                4-8 (rebalancing)
-Fidélité TradFi         ★★★☆☆              ★★★★★
-```
-
-### Delta calculation onchain (version hackathon)
-
-```solidity
-/// @notice Simplified knock-in put delta
-/// @param spotBps Price as % of initial (10000 = 100%)
-/// @param barrierBps Knock-in barrier (7000 = 70%)
-/// @param timeToMatBps Time remaining as % of total (10000 = 100%)
-/// @return deltaBps Delta in bps (3000 = 0.30)
-function calculateDelta(
-    uint256 spotBps,
-    uint256 barrierBps,
-    uint256 timeToMatBps
-) public pure returns (uint256 deltaBps) {
-    if (spotBps <= barrierBps) return 10000; // knocked in → full hedge
-
-    uint256 moneyness = spotBps - barrierBps;
-
-    // Base delta: inversely proportional to distance from barrier
-    uint256 baseDelta;
-    if (moneyness >= 5000) {
-        baseDelta = 500; // 5% floor
-    } else {
-        baseDelta = 10000 - (moneyness * 19000 / 10000);
-        if (baseDelta < 500) baseDelta = 500;
-    }
-
-    // Time decay: delta increases as maturity approaches
-    uint256 timeAdj = 10000 - (timeToMatBps / 3);
-    deltaBps = (baseDelta * timeAdj) / 10000;
-
-    if (deltaBps > 10000) deltaBps = 10000;
-    if (deltaBps < 500) deltaBps = 500;
-}
+┌─────────────────────────────────────────────────────────────┐
+│                  HedgeManager.sol                            │
+│            (= PiggyBank strategy sur EVM)                    │
+│                                                             │
+│  Strategie identique a PiggyBank :                          │
+│  1. Acheter xStocks spot (via 1inch)                        │
+│  2. Collateraliser xStocks sur Euler EVK                    │
+│  3. Emprunter USDC contre les xStocks                       │
+│  4. Short perps equivalents sur Aster DEX                   │
+│  5. Position delta-neutral → capture funding rate (8h)      │
+│                                                             │
+│  Le short perp = le delta hedge de l'autocall               │
+│  Le funding rate = le yield en bonus                        │
+│                                                             │
+│  Capital flow :                                             │
+│  ┌──────────────┐     ┌─────────────┐     ┌──────────────┐ │
+│  │ Buy xStocks  │────→│ Collat on   │────→│ Borrow USDC  │ │
+│  │ via 1inch    │     │ Euler EVK   │     │ for margin   │ │
+│  └──────────────┘     └─────────────┘     └──────┬───────┘ │
+│                                                   │         │
+│                                            ┌──────▼───────┐ │
+│                                            │ Short perps  │ │
+│                                            │ on Aster DEX │ │
+│                                            │ (NVDA, TSLA) │ │
+│                                            └──────┬───────┘ │
+│                                                   │         │
+│                                            ┌──────▼───────┐ │
+│                                            │ Collect      │ │
+│                                            │ funding rate │ │
+│                                            │ every 8h     │ │
+│                                            └──────────────┘ │
+│                                                             │
+│  Risk management (calque PiggyBank) :                       │
+│  ├── Levier max : 2-3x (conservateur)                       │
+│  ├── Rebalance si delta > ±5%                               │
+│  ├── Stop loss si funding negatif > 3 periodes (24h)        │
+│  ├── Switch vers Euler lending pur si marche adverse         │
+│  └── Chainlink Automation pour triggers automatiques        │
+│                                                             │
+│  Yield attendu (meme profil que PiggyBank) :                │
+│  ├── Bull market : 15-25% (PB: 20.84% USDC)                │
+│  ├── Normal : 8-12%                                         │
+│  └── Bear : 3-5%                                            │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Architecture Smart Contracts (mise à jour avec delta-hedge)
+## 5. Smart Contracts — Structure
 
 ```
-NoteFactory.sol              ─── Creates new note series
-     │
-     ↓
-NoteVault.sol                ─── Core lifecycle manager
-     │                           ERC-1155 note tokens
-     │
-     ├──→ DeltaHedgeEngine.sol  ─── Delta calculation
-     │         │                     Rebalancing logic
-     │         │                     xStock position tracking
-     │         │
-     │         ├──→ SwapAdapter.sol    ─── 1inch (buy/sell xStocks)
-     │         └──→ PriceOracle.sol    ─── Chainlink Data Streams
-     │
-     ├──→ EulerAdapter.sol       ─── Deposit/withdraw idle USDC
-     │
-     └──→ ObservationEngine.sol  ─── Barrier checks + settlement
-                                      Triggered by Chainlink CRE
-
-UnderwriterPool.sol          ─── LP deposits/withdrawals
-     │                           Pro-rata P&L (incl. gamma P&L)
-     └──→ RiskManager.sol    ─── Coverage ratio, utilization caps
-
-NoteToken.sol (ERC-1155)     ─── Transferable note positions
-
-CRE Workflow (off-chain)     ─── Cron observations
-                                  Price-triggered rebalancing
-                                  Barrier monitoring
+contracts/
+├── core/
+│   ├── XYieldVault.sol          ← ERC-4626, deposit/withdraw USDC, epoch system
+│   ├── AutocallEngine.sol       ← Phoenix logic, observations, settlement
+│   ├── NoteToken.sol            ← ERC-1155, represents autocall position
+│   └── HedgeManager.sol         ← PiggyBank strat: spot+perp arb, risk mgmt
+│
+├── yield/
+│   ├── EulerStrategy.sol        ← Deploy USDC on Euler, manage EVK collateral
+│   ├── FundingArbStrategy.sol   ← Long xStocks + short Aster perps
+│   └── YieldRouter.sol          ← Allocate between Euler/arb based on rates
+│
+├── integrations/
+│   ├── AsterAdapter.sol         ← Interface with Aster DEX for perp positions
+│   ├── ChainlinkPriceFeed.sol   ← Data Streams for xStocks prices
+│   ├── ChainlinkKeeper.sol      ← Automation for observations + rebalancing
+│   ├── OneInchSwapper.sol       ← 1inch aggregator for xStocks spot trades
+│   └── ERC7579AutoRoll.sol      ← Smart account module for auto-roll
+│
+└── periphery/
+    ├── NoteFactory.sol          ← Create new autocall series
+    ├── EpochManager.sol         ← 48h epoch logic (NAV, withdrawals, rebalance)
+    └── FeeCollector.sol         ← Collect and distribute protocol fees
 ```
 
----
-
-## Lifecycle mise à jour avec Delta-Hedge
-
-```
-Phase 1: FUNDING + INITIAL HEDGE
-  Investor USDC ──→ NoteVault
-  Underwriter USDC ──→ Pool
-  DeltaHedgeEngine:
-    Calculate initial delta (≈0.25-0.35)
-    Buy delta% of notional in xStocks via 1inch
-    Deposit remaining USDC in Euler
-
-Phase 2: ACTIVE (observations + rebalancing)
-  Chainlink CRE triggers:
-    ├── Observation dates → check barriers + rebalance
-    └── Price moves >5% → rebalance delta hedge
-
-  At each trigger:
-    1. Fetch price (Chainlink Data Streams)
-    2. Calculate new delta
-    3. Rebalance xStock position (1inch buy/sell)
-    4. Check autocall/knock-in barriers
-    5. Pay coupon if due (from underwriter pool + gamma P&L)
-
-Phase 3a: AUTOCALL
-  Sell all xStocks via 1inch → USDC
-  Euler withdraw
-  Return principal + coupon to investor
-  Remaining (incl. gamma P&L) → underwriter pool
-
-Phase 3b: KNOCK-IN MATURITY
-  Buy remaining xStocks to reach 100% via 1inch
-  Deliver all xStocks to investor
-  Remaining USDC (pool profit) → underwriter pool
-
-Phase 3c: MATURITY (no knock-in)
-  Sell all xStocks via 1inch → USDC
-  Euler withdraw
-  Return principal + final coupon to investor
-  Remaining → underwriter pool
-```
-
----
-
-## Revenue Model
-
-- **Issuance fee** : 0.5% du notionnel à l'ouverture
-- **Performance fee** : 10% du gamma P&L + 10% des profits underwriter sur knock-in
-- **Coupon spread** : 0.1-0.25% de spread entre coupon affiché et coupon réel
-- **Swap fees** : protocol captures une partie des 1inch referral fees sur chaque rebalancing
-
----
-
-## Scoring Hackathon
-
-| Critère (poids) | Score | Justification |
-|-----------------|-------|---------------|
-| xStocks Relevance (30%) | **10/10** | Achat, détention, rebalancing, physical delivery de xStocks. Le protocole est un HOLDER actif de xStocks. |
-| Technical Execution (30%) | **9/10** | Delta hedge engine + CRE + Euler + 1inch + ERC-1155. Banking-grade complexity. |
-| Innovation (15%) | **10/10** | Premier autocall P2P avec delta-hedge onchain. Jamais fait nulle part. |
-| Market Potential (10%) | **9/10** | $13T structured products TradFi → DeFi disruption |
-| UX & Design (10%) | **8/10** | Investor dashboard + Underwriter dashboard + Risk monitor |
-| Presentation (5%) | **9/10** | "We built a structuring desk in a smart contract" |
-
----
-
-## Pricing Engine : Monte Carlo Off-Chain via Chainlink CRE
-
-### Pourquoi on ne peut PAS pricer un autocall avec Black-Scholes
-
-Un autocall est une **option exotique path-dependent**. Le payoff dépend du CHEMIN du prix (est-ce qu'il a touché la barrière à une date d'observation précise ?), pas juste du prix final. Black-Scholes ne fonctionne que pour les options européennes (payoff = f(prix final)).
-
-En TradFi, les quants utilisent :
-- **Monte Carlo** : simuler 10,000-100,000 chemins de prix, évaluer le payoff moyen
-- **Vol locale (Dupire)** : extraire une surface de volatilité à partir des options cotées
-- **Vol stochastique (Heston/SABR)** : modéliser la dynamique de la vol elle-même
-- **Méthodes aux différences finies** : résoudre numériquement l'EDP de pricing
-
-Pour notre protocole, **Monte Carlo via CRE** est l'approche la plus adaptée : c'est flexible, extensible, et le calcul lourd se fait off-chain.
-
-### Architecture : Off-chain compute, Onchain settlement
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    CHAINLINK CRE (OFF-CHAIN)                     │
-│                                                                   │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │                  PRICING WORKFLOW                           │  │
-│  │                                                             │  │
-│  │  Trigger: cron (daily 16h30 ET) + price deviation (>3%)    │  │
-│  │                                                             │  │
-│  │  1. FETCH INPUTS                                           │  │
-│  │     ├── Spot prices (Chainlink Data Streams)               │  │
-│  │     ├── Historical prices (30j → realized vol)             │  │
-│  │     ├── Risk-free rate (Euler lending rate onchain)         │  │
-│  │     └── Note parameters (NoteVault onchain)                │  │
-│  │                                                             │  │
-│  │  2. COMPUTE VOLATILITY                                     │  │
-│  │     ├── Realized vol 30j (close-to-close)                  │  │
-│  │     ├── Realized vol 90j (longer window)                   │  │
-│  │     ├── EWMA vol (exponentially weighted)                  │  │
-│  │     └── Parkinson vol (high-low estimator, si dispo)       │  │
-│  │                                                             │  │
-│  │  3. MONTE CARLO SIMULATION (N=10,000 paths)               │  │
-│  │     ├── Simulate GBM paths to each observation date        │  │
-│  │     ├── Check autocall barrier at each obs date            │  │
-│  │     ├── Check knock-in barrier (continuous or discrete)    │  │
-│  │     ├── Compute discounted payoff for each path            │  │
-│  │     └── Average = fair value of the note                   │  │
-│  │                                                             │  │
-│  │  4. COMPUTE GREEKS (bump-and-reprice)                      │  │
-│  │     ├── Delta : reprice at S+ε and S-ε                     │  │
-│  │     ├── Gamma : (V(S+ε) - 2V(S) + V(S-ε)) / ε²           │  │
-│  │     ├── Vega  : reprice at σ+0.01                          │  │
-│  │     ├── Theta : reprice at T-1day                          │  │
-│  │     └── Rho   : reprice at r+0.01                          │  │
-│  │                                                             │  │
-│  │  5. DERIVE FAIR COUPON                                     │  │
-│  │     Binary search : find coupon C where noteValue(C) = 1.0 │  │
-│  │     = coupon rate that makes the note "at par"              │  │
-│  │                                                             │  │
-│  │  6. RISK METRICS                                           │  │
-│  │     ├── P(knock-in) : % of paths that hit barrier          │  │
-│  │     ├── P(autocall) per observation date                   │  │
-│  │     ├── Expected loss given knock-in                       │  │
-│  │     ├── VaR 95% / CVaR 95% for the pool                   │  │
-│  │     └── Stress scenarios (spot -20%, -30%, -40%)           │  │
-│  │                                                             │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                              │                                    │
-│                              ▼                                    │
-│                    POST RESULTS ONCHAIN                           │
-└──────────────────────────────┬────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    ONCHAIN (Smart Contracts)                      │
-│                                                                   │
-│  PricingOracle.sol                                               │
-│  ├── updatePricing(noteId, delta, fairCoupon, noteValue, ...)   │
-│  ├── Stores latest Greeks for each active note                   │
-│  ├── Emits events for frontend consumption                       │
-│  └── Access-controlled : only CRE DON nodes can write           │
-│                                                                   │
-│  Consumed by :                                                    │
-│  ├── DeltaHedgeEngine.sol → reads delta for rebalancing          │
-│  ├── NoteFactory.sol → reads fairCoupon for new note pricing     │
-│  ├── RiskManager.sol → reads VaR/stress for pool health          │
-│  └── Frontend → reads all for dashboard display                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Le CRE Workflow complet (TypeScript)
-
-```typescript
-import { cre } from "@chainlink/cre-sdk";
-
-// === TYPES ===
-
-interface NoteParams {
-  noteId: string;
-  underlying: string;         // "NVDAx"
-  initialPrice: number;       // prix au lancement
-  autocallBarrierPct: number; // 1.0 = 100%
-  knockinBarrierPct: number;  // 0.7 = 70%
-  couponRate: number;         // 0.03 = 3% par période
-  observationDates: number[]; // timestamps unix
-  maturityDate: number;
-  notionalShares: number;     // nombre de shares du notionnel
-}
-
-interface PricingResult {
-  noteValue: number;       // mark-to-market (1.0 = par)
-  fairCoupon: number;      // coupon qui rend noteValue = 1.0
-  delta: number;           // hedge ratio (0 à 1)
-  gamma: number;           // dDelta/dSpot
-  vega: number;            // dValue/dVol (pour 1% de vol)
-  theta: number;           // dValue/dT (par jour)
-  knockInProb: number;     // probabilité de knock-in (0 à 1)
-  autocallProbs: number[]; // probabilité d'autocall à chaque date
-  expectedLossKI: number;  // perte moyenne si knock-in
-  var95: number;           // Value-at-Risk 95%
-}
-
-// === VOLATILITY COMPUTATION ===
-
-function computeRealizedVol(prices: number[], window: number): number {
-  // Log-returns
-  const returns: number[] = [];
-  const start = Math.max(0, prices.length - window);
-  for (let i = start + 1; i < prices.length; i++) {
-    returns.push(Math.log(prices[i] / prices[i - 1]));
-  }
-
-  // Standard deviation of log-returns
-  const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-  const variance = returns.reduce((a, r) => a + (r - mean) ** 2, 0)
-                   / (returns.length - 1);
-
-  // Annualize (252 trading days)
-  return Math.sqrt(variance * 252);
-}
-
-function computeEWMAVol(prices: number[], lambda: number = 0.94): number {
-  // Exponentially Weighted Moving Average — RiskMetrics standard
-  const returns: number[] = [];
-  for (let i = 1; i < prices.length; i++) {
-    returns.push(Math.log(prices[i] / prices[i - 1]));
-  }
-
-  let variance = returns[0] ** 2;
-  for (let i = 1; i < returns.length; i++) {
-    variance = lambda * variance + (1 - lambda) * returns[i] ** 2;
-  }
-
-  return Math.sqrt(variance * 252);
-}
-
-// === RANDOM NUMBER GENERATION ===
-
-// Box-Muller transform for normal distribution
-function normalRandom(): number {
-  let u = 0, v = 0;
-  while (u === 0) u = Math.random();
-  while (v === 0) v = Math.random();
-  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-}
-
-// === MONTE CARLO PRICER ===
-
-function monteCarloPrice(
-  spot: number,
-  vol: number,
-  riskFreeRate: number,
-  note: NoteParams,
-  couponOverride: number | null,
-  numSims: number = 10000
-): PricingResult {
-  const coupon = couponOverride ?? note.couponRate;
-  const now = Date.now() / 1000;
-
-  // Filter future observation dates
-  const futureDates = note.observationDates.filter(d => d > now);
-  const T = (note.maturityDate - now) / (365 * 86400); // years to maturity
-
-  let totalPayoff = 0;
-  let knockInCount = 0;
-  const autocallCounts = new Array(futureDates.length).fill(0);
-  const payoffs: number[] = [];
-
-  for (let sim = 0; sim < numSims; sim++) {
-    let S = spot;
-    let knockedIn = false;
-    let autocalled = false;
-    let payoff = 0;
-    let prevTime = now;
-
-    for (let i = 0; i < futureDates.length; i++) {
-      const obsTime = futureDates[i];
-      const dt = (obsTime - prevTime) / (365 * 86400); // years
-
-      // GBM step : S(t+dt) = S(t) × exp((r - σ²/2)dt + σ√dt × Z)
-      const Z = normalRandom();
-      S = S * Math.exp(
-        (riskFreeRate - 0.5 * vol * vol) * dt + vol * Math.sqrt(dt) * Z
-      );
-      prevTime = obsTime;
-
-      // Autocall check : prix ≥ autocall barrier × initial
-      if (S >= note.autocallBarrierPct * note.initialPrice) {
-        const periodsElapsed = note.observationDates.indexOf(obsTime) + 1;
-        payoff = 1 + coupon * periodsElapsed; // principal + coupons
-        const tToObs = (obsTime - now) / (365 * 86400);
-        payoff *= Math.exp(-riskFreeRate * tToObs); // discount
-        autocallCounts[i]++;
-        autocalled = true;
-        break;
-      }
-
-      // Knock-in check : prix < knock-in barrier × initial
-      if (S < note.knockinBarrierPct * note.initialPrice) {
-        knockedIn = true;
-      }
-    }
-
-    if (!autocalled) {
-      const totalPeriods = note.observationDates.length;
-      if (knockedIn && S < note.initialPrice) {
-        // Knock-in AND final price below initial → physical delivery at loss
-        payoff = (S / note.initialPrice) + coupon * totalPeriods;
-      } else {
-        // No knock-in, OR knock-in but stock recovered above initial
-        // → full principal returned + all coupons
-        payoff = 1 + coupon * totalPeriods;
-      }
-      payoff *= Math.exp(-riskFreeRate * T); // discount to present
-      if (knockedIn) knockInCount++; // track all knock-ins (even recovered)
-    }
-
-    totalPayoff += payoff;
-    payoffs.push(payoff);
-  }
-
-  const noteValue = totalPayoff / numSims;
-  const knockInProb = knockInCount / numSims;
-
-  // VaR 95% : 5th percentile of payoff distribution
-  payoffs.sort((a, b) => a - b);
-  const var95 = 1 - payoffs[Math.floor(numSims * 0.05)]; // loss amount
-
-  // Expected loss given knock-in
-  const kiPayoffs = payoffs.filter(p => p < 1);
-  const expectedLossKI = kiPayoffs.length > 0
-    ? 1 - kiPayoffs.reduce((a, b) => a + b, 0) / kiPayoffs.length
-    : 0;
-
-  return {
-    noteValue,
-    fairCoupon: 0, // computed separately via binary search
-    delta: 0,      // computed separately via bump-and-reprice
-    gamma: 0,
-    vega: 0,
-    theta: 0,
-    knockInProb,
-    autocallProbs: autocallCounts.map(c => c / numSims),
-    expectedLossKI,
-    var95,
-  };
-}
-
-// === FAIR COUPON SOLVER ===
-
-function solveFairCoupon(
-  spot: number,
-  vol: number,
-  riskFreeRate: number,
-  note: NoteParams,
-  numSims: number = 10000
-): number {
-  // Binary search : find coupon C where noteValue(C) ≈ 1.0 (par)
-  let low = 0.001;  // 0.1%
-  let high = 0.15;  // 15% per period
-  let mid = 0;
-
-  for (let iter = 0; iter < 50; iter++) {
-    mid = (low + high) / 2;
-    const result = monteCarloPrice(spot, vol, riskFreeRate, note, mid, numSims);
-
-    if (Math.abs(result.noteValue - 1.0) < 0.0001) break;
-
-    if (result.noteValue > 1.0) {
-      high = mid; // coupon too high → note overvalued → reduce
-    } else {
-      low = mid;  // coupon too low → note undervalued → increase
-    }
-  }
-
-  return mid;
-}
-
-// === GREEKS VIA BUMP-AND-REPRICE ===
-
-function computeGreeks(
-  spot: number,
-  vol: number,
-  riskFreeRate: number,
-  note: NoteParams,
-  numSims: number = 10000
-): { delta: number; gamma: number; vega: number; theta: number } {
-  const eps_S = spot * 0.01;  // 1% spot bump
-  const eps_vol = 0.01;       // 1% vol bump
-  const eps_T = 1 / 365;      // 1 day
-
-  // Base price
-  const V = monteCarloPrice(spot, vol, riskFreeRate, note, null, numSims).noteValue;
-
-  // Delta = dV/dS (central difference)
-  const V_up = monteCarloPrice(spot + eps_S, vol, riskFreeRate, note, null, numSims).noteValue;
-  const V_dn = monteCarloPrice(spot - eps_S, vol, riskFreeRate, note, null, numSims).noteValue;
-  const delta = (V_up - V_dn) / (2 * eps_S) * spot; // normalized
-
-  // Gamma = d²V/dS²
-  const gamma = (V_up - 2 * V + V_dn) / (eps_S * eps_S) * spot * spot;
-
-  // Vega = dV/dσ (for 1% vol move)
-  const V_vup = monteCarloPrice(spot, vol + eps_vol, riskFreeRate, note, null, numSims).noteValue;
-  const vega = V_vup - V;
-
-  // Theta = dV/dT (per day)
-  // Shift all observation dates and maturity by -1 day
-  const shiftedNote = {
-    ...note,
-    observationDates: note.observationDates.map(d => d - 86400),
-    maturityDate: note.maturityDate - 86400,
-  };
-  const V_t = monteCarloPrice(spot, vol, riskFreeRate, shiftedNote, null, numSims).noteValue;
-  const theta = V_t - V; // negative = time decay (note loses value)
-
-  return { delta: Math.abs(delta), gamma, vega, theta };
-}
-
-// === WORST-OF BASKET (multi-asset, correlated) ===
-
-function choleskyDecomposition(matrix: number[][]): number[][] {
-  const n = matrix.length;
-  const L = Array.from({ length: n }, () => new Array(n).fill(0));
-
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j <= i; j++) {
-      let sum = 0;
-      for (let k = 0; k < j; k++) {
-        sum += L[i][k] * L[j][k];
-      }
-      if (i === j) {
-        L[i][j] = Math.sqrt(matrix[i][i] - sum);
-      } else {
-        L[i][j] = (matrix[i][j] - sum) / L[j][j];
-      }
-    }
-  }
-  return L;
-}
-
-function monteCarloWorstOf(
-  spots: number[],
-  vols: number[],
-  correlationMatrix: number[][],
-  riskFreeRate: number,
-  note: NoteParams, // barrier/coupon apply to worst performer
-  numSims: number = 10000
-): PricingResult {
-  const n = spots.length; // number of underlyings
-  const L = choleskyDecomposition(correlationMatrix);
-  const now = Date.now() / 1000;
-  const futureDates = note.observationDates.filter(d => d > now);
-  const T = (note.maturityDate - now) / (365 * 86400);
-
-  let totalPayoff = 0;
-  let knockInCount = 0;
-  const payoffs: number[] = [];
-
-  for (let sim = 0; sim < numSims; sim++) {
-    const S = [...spots]; // current prices for each underlying
-    let knockedIn = false;
-    let autocalled = false;
-    let payoff = 0;
-    let prevTime = now;
-
-    for (let i = 0; i < futureDates.length; i++) {
-      const dt = (futureDates[i] - prevTime) / (365 * 86400);
-      prevTime = futureDates[i];
-
-      // Generate correlated random numbers
-      const Z_indep = Array.from({ length: n }, () => normalRandom());
-      const Z_corr = L.map((row) =>
-        row.reduce((sum, Lij, j) => sum + Lij * Z_indep[j], 0)
-      );
-
-      // GBM step for each underlying
-      for (let k = 0; k < n; k++) {
-        S[k] = S[k] * Math.exp(
-          (riskFreeRate - 0.5 * vols[k] ** 2) * dt
-          + vols[k] * Math.sqrt(dt) * Z_corr[k]
-        );
-      }
-
-      // Performance of each underlying vs initial
-      const performances = S.map((s, k) => s / spots[k]);
-
-      // WORST-OF : performance = min across all underlyings
-      const worstPerf = Math.min(...performances);
-
-      // Autocall check on worst performer
-      if (worstPerf >= note.autocallBarrierPct) {
-        const periodsElapsed = note.observationDates.indexOf(futureDates[i]) + 1;
-        payoff = 1 + note.couponRate * periodsElapsed;
-        payoff *= Math.exp(-riskFreeRate * (futureDates[i] - now) / (365 * 86400));
-        autocalled = true;
-        break;
-      }
-
-      // Knock-in check on worst performer
-      if (worstPerf < note.knockinBarrierPct) {
-        knockedIn = true;
-      }
-    }
-
-    if (!autocalled) {
-      const totalPeriods = note.observationDates.length;
-      const performances = S.map((s, k) => s / spots[k]);
-      const worstPerf = Math.min(...performances);
-
-      if (knockedIn && worstPerf < 1.0) {
-        // Knock-in AND worst performer below initial → physical delivery
-        // Deliver the worst-performing xStock at current (depressed) value
-        payoff = worstPerf + note.couponRate * totalPeriods;
-      } else {
-        // No knock-in, OR knock-in but all stocks recovered above initial
-        payoff = 1 + note.couponRate * totalPeriods;
-      }
-      payoff *= Math.exp(-riskFreeRate * T);
-      if (knockedIn) knockInCount++;
-    }
-
-    totalPayoff += payoff;
-    payoffs.push(payoff);
-  }
-
-  payoffs.sort((a, b) => a - b);
-
-  return {
-    noteValue: totalPayoff / numSims,
-    fairCoupon: 0,
-    delta: 0,
-    gamma: 0,
-    vega: 0,
-    theta: 0,
-    knockInProb: knockInCount / numSims,
-    autocallProbs: [],
-    expectedLossKI: 0,
-    var95: 1 - payoffs[Math.floor(numSims * 0.05)],
-  };
-}
-
-// === CRE MAIN WORKFLOW ===
-
-const PRICING_SCHEDULE = cre.cronTrigger({
-  schedule: "0 30 16 * * MON-FRI", // 16h30 ET = after US market close
-  timezone: "America/New_York",
-});
-
-cre.handler(PRICING_SCHEDULE, async (ctx) => {
-  // 1. Get all active notes
-  const activeNoteIds = await ctx.evmClient.read({
-    chain: "ethereum",
-    contract: NOTE_VAULT_ADDRESS,
-    method: "getActiveNoteIds",
-    args: [],
-  });
-
-  for (const noteId of activeNoteIds) {
-    // 2. Read note parameters from chain
-    const noteParams = await ctx.evmClient.read({
-      chain: "ethereum",
-      contract: NOTE_VAULT_ADDRESS,
-      method: "getNoteParams",
-      args: [noteId],
-    });
-
-    // 3. Fetch current spot price from Chainlink Data Streams
-    const spotPrice = await ctx.dataStreams.read({
-      feedId: noteParams.underlyingFeedId,
-      fields: ["price", "marketStatus"],
-    });
-
-    // Skip if market is closed
-    if (spotPrice.marketStatus !== 1) continue;
-
-    // 4. Fetch historical prices for vol calculation
-    const histPrices = await ctx.httpClient.fetch({
-      url: `https://api.xstocks.fi/v1/prices/history`
-          + `?asset=${noteParams.underlying}&days=90`,
-      method: "GET",
-    });
-    const prices = JSON.parse(histPrices.body).prices;
-
-    // 5. Calculate volatility (use EWMA as primary)
-    const vol30 = computeRealizedVol(prices, 30);
-    const volEWMA = computeEWMAVol(prices, 0.94);
-    const vol = Math.max(vol30, volEWMA); // conservative: use higher vol
-
-    // 6. Get risk-free rate from Euler
-    const eulerRate = await ctx.evmClient.read({
-      chain: "ethereum",
-      contract: EULER_VAULT_ADDRESS,
-      method: "interestRate",
-      args: [],
-    });
-    const riskFreeRate = Number(eulerRate) / 1e18; // normalize
-
-    // 7. Run Monte Carlo pricing
-    const note: NoteParams = {
-      noteId,
-      underlying: noteParams.underlying,
-      initialPrice: Number(noteParams.initialPrice) / 1e18,
-      autocallBarrierPct: Number(noteParams.autocallBarrierBps) / 10000,
-      knockinBarrierPct: Number(noteParams.knockinBarrierBps) / 10000,
-      couponRate: Number(noteParams.couponBps) / 10000,
-      observationDates: noteParams.observationDates.map(Number),
-      maturityDate: Number(noteParams.maturityDate),
-      notionalShares: Number(noteParams.notionalShares),
-    };
-
-    const pricing = monteCarloPrice(
-      spotPrice.price, vol, riskFreeRate, note, null, 10000
-    );
-
-    // 8. Compute Greeks
-    const greeks = computeGreeks(
-      spotPrice.price, vol, riskFreeRate, note, 10000
-    );
-
-    // 9. Compute fair coupon for new notes with same params
-    const fairCoupon = solveFairCoupon(
-      spotPrice.price, vol, riskFreeRate, note, 10000
-    );
-
-    // 10. Post everything onchain
-    await ctx.evmClient.write({
-      chain: "ethereum",
-      contract: PRICING_ORACLE_ADDRESS,
-      method: "updatePricing",
-      args: [
-        noteId,
-        toFixed18(greeks.delta),       // delta (0-1 scaled to 18 decimals)
-        toFixed18(greeks.gamma),
-        toFixed18(greeks.vega),
-        toFixed18(greeks.theta),
-        toFixed18(fairCoupon),
-        toFixed18(pricing.noteValue),
-        toFixed18(pricing.knockInProb),
-        toFixed18(pricing.var95),
-        toFixed18(vol),                // current vol used
-      ],
-    });
-
-    // 11. Check if delta-hedge rebalance needed
-    const currentDelta = await ctx.evmClient.read({
-      chain: "ethereum",
-      contract: DELTA_HEDGE_ENGINE_ADDRESS,
-      method: "currentDelta",
-      args: [noteId],
-    });
-
-    const deltaChange = Math.abs(greeks.delta - Number(currentDelta) / 1e18);
-    if (deltaChange > 0.05) { // 5% threshold
-      await ctx.evmClient.write({
-        chain: "ethereum",
-        contract: DELTA_HEDGE_ENGINE_ADDRESS,
-        method: "rebalance",
-        args: [noteId, toFixed18(greeks.delta)],
-      });
-    }
-  }
-});
-
-function toFixed18(value: number): bigint {
-  return BigInt(Math.round(value * 1e18));
-}
-```
-
-### PricingOracle.sol — Le contrat qui reçoit les résultats
+### XYieldVault.sol (coeur)
 
 ```solidity
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.20;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-struct PricingData {
-    uint256 delta;          // 18 decimals (0.3e18 = delta of 0.30)
-    uint256 gamma;          // 18 decimals
-    int256  vega;           // 18 decimals (can be negative)
-    int256  theta;          // 18 decimals (usually negative)
-    uint256 fairCoupon;     // 18 decimals (per period)
-    uint256 noteValue;      // 18 decimals (1e18 = par)
-    uint256 knockInProb;    // 18 decimals (probability 0-1)
-    uint256 var95;          // 18 decimals (loss amount)
-    uint256 impliedVol;     // 18 decimals (annualized)
-    uint256 lastUpdate;     // timestamp
-}
+contract XYieldVault is ERC4626, Ownable {
+    // --- Epoch System (48h, like PiggyBank) ---
+    uint256 public constant EPOCH_DURATION = 48 hours;
+    uint256 public currentEpoch;
+    uint256 public epochStartTime;
 
-contract PricingOracle is Ownable {
-    /// @notice CRE DON address authorized to post pricing
-    address public creDonAddress;
+    // --- Strategy allocation ---
+    uint256 public eulerAllocation;   // basis points (e.g., 5000 = 50%)
+    uint256 public arbAllocation;     // basis points
+    uint256 public reserveAllocation; // basis points
 
-    /// @notice Latest pricing data per noteId
-    mapping(bytes32 => PricingData) public pricing;
+    // --- Integrations ---
+    IEulerStrategy public eulerStrategy;
+    IFundingArbStrategy public arbStrategy;
+    IYieldRouter public yieldRouter;
 
-    /// @notice Latest fair coupon per underlying (for new note pricing)
-    mapping(address => uint256) public fairCouponByUnderlying;
-
-    event PricingUpdated(
-        bytes32 indexed noteId,
-        uint256 delta,
-        uint256 fairCoupon,
-        uint256 noteValue,
-        uint256 knockInProb
-    );
-
-    modifier onlyCRE() {
-        require(msg.sender == creDonAddress, "Only CRE DON");
-        _;
+    // --- Withdrawal queue (epoch-based) ---
+    struct WithdrawalRequest {
+        address user;
+        uint256 shares;
+        uint256 epoch;
     }
+    WithdrawalRequest[] public withdrawalQueue;
 
-    constructor(address _creDon) Ownable(msg.sender) {
-        creDonAddress = _creDon;
-    }
+    constructor(IERC20 _usdc) ERC4626(_usdc) ERC20("xYield USDC", "xyUSDC") {}
 
-    function updatePricing(
-        bytes32 noteId,
-        uint256 delta,
-        uint256 gamma,
-        int256  vega,
-        int256  theta,
-        uint256 fairCoupon,
-        uint256 noteValue,
-        uint256 knockInProb,
-        uint256 var95,
-        uint256 impliedVol
-    ) external onlyCRE {
-        pricing[noteId] = PricingData({
-            delta: delta,
-            gamma: gamma,
-            vega: vega,
-            theta: theta,
-            fairCoupon: fairCoupon,
-            noteValue: noteValue,
-            knockInProb: knockInProb,
-            var95: var95,
-            impliedVol: impliedVol,
-            lastUpdate: block.timestamp
-        });
-
-        emit PricingUpdated(noteId, delta, fairCoupon, noteValue, knockInProb);
-    }
-
-    /// @notice Get delta for the DeltaHedgeEngine
-    function getDelta(bytes32 noteId) external view returns (uint256) {
-        require(
-            block.timestamp - pricing[noteId].lastUpdate < 3 days,
-            "Pricing stale" // 3 days to cover weekends (CRE runs MON-FRI only)
-        );
-        return pricing[noteId].delta;
-    }
-
-    /// @notice Get fair coupon for NoteFactory (new note issuance)
-    function getFairCoupon(bytes32 noteId) external view returns (uint256) {
-        return pricing[noteId].fairCoupon;
-    }
-
-    /// @notice Get full risk metrics for RiskManager
-    function getRiskMetrics(bytes32 noteId)
-        external view
-        returns (uint256 knockInProb, uint256 var95, uint256 impliedVol)
+    /// @notice Deposit USDC, get xyUSDC shares
+    function deposit(uint256 assets, address receiver)
+        public override returns (uint256 shares)
     {
-        PricingData memory p = pricing[noteId];
-        return (p.knockInProb, p.var95, p.impliedVol);
+        shares = super.deposit(assets, receiver);
+        _deployCapital(assets);
+    }
+
+    /// @notice Request withdrawal (processed next epoch)
+    function requestWithdraw(uint256 shares) external {
+        withdrawalQueue.push(WithdrawalRequest({
+            user: msg.sender,
+            shares: shares,
+            epoch: currentEpoch + 1
+        }));
+    }
+
+    /// @notice Process epoch: NAV update, withdrawals, rebalance
+    function processEpoch() external {
+        require(block.timestamp >= epochStartTime + EPOCH_DURATION, "epoch not ended");
+
+        // 1. Update NAV from strategies
+        uint256 eulerYield = eulerStrategy.harvest();
+        uint256 arbYield = arbStrategy.harvest();
+
+        // 2. Process pending withdrawals
+        _processWithdrawals();
+
+        // 3. Rebalance between strategies
+        yieldRouter.rebalance(eulerAllocation, arbAllocation);
+
+        // 4. Advance epoch
+        currentEpoch++;
+        epochStartTime = block.timestamp;
+    }
+
+    /// @notice Total assets = USDC in vault + deployed in strategies
+    function totalAssets() public view override returns (uint256) {
+        return IERC20(asset()).balanceOf(address(this))
+            + eulerStrategy.totalValue()
+            + arbStrategy.totalValue();
+    }
+
+    function _deployCapital(uint256 amount) internal {
+        uint256 toEuler = (amount * eulerAllocation) / 10000;
+        uint256 toArb = (amount * arbAllocation) / 10000;
+        // rest stays as reserve
+
+        if (toEuler > 0) eulerStrategy.deposit(toEuler);
+        if (toArb > 0) arbStrategy.deposit(toArb);
+    }
+
+    function _processWithdrawals() internal {
+        // Process all withdrawals queued for current epoch
+        // ...
     }
 }
 ```
 
-### Pourquoi c'est supérieur à un delta linéaire onchain
+### HedgeManager.sol (la strat PiggyBank)
 
-```
-                    DELTA LINÉAIRE        MONTE CARLO CRE
-                    (onchain, approx)     (off-chain, exact)
-────────────────────────────────────────────────────────────
-Précision delta     ★★☆☆☆                 ★★★★★
-                    Approximation         Bump-and-reprice
-                    linéaire              numérique exact
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 
-Pricing coupon      FIXE                  DYNAMIQUE
-                    Set manuellement      Fair coupon calculé
-                                          par le marché (MC)
+import "./integrations/AsterAdapter.sol";
+import "./integrations/OneInchSwapper.sol";
 
-Greeks              Delta seulement       Delta + Gamma + Vega
-                                          + Theta + Rho
+contract HedgeManager {
+    // --- PiggyBank Strategy on EVM ---
+    // Long xStocks spot + Short xStocks perps = delta-neutral + funding capture
 
-Risk metrics        Aucun                 P(knock-in), VaR,
-                                          stress tests
+    IAsterAdapter public aster;       // Aster DEX for perps
+    IOneInchSwapper public swapper;   // 1inch for spot trades
+    IEulerVault public eulerVault;    // Euler EVK for collateral
+    IChainlinkFeed public priceFeed;  // Chainlink for prices
 
-Worst-of basket     Impossible            ✓ (corrélation
-                    (pas de corrélation)  multi-asset)
+    struct HedgePosition {
+        address xStock;          // e.g., NVDAx address
+        uint256 spotAmount;      // amount of xStocks held
+        uint256 perpShortSize;   // notional of short perp on Aster
+        uint256 collateralOnEuler; // xStocks deposited as collateral
+        uint256 borrowedUSDC;    // USDC borrowed against collateral
+        uint256 fundingAccrued;  // total funding rate collected
+        uint256 lastRebalance;   // timestamp
+    }
 
-Coût gas            ÉLEVÉ (calcul         ZÉRO (off-chain)
-                    onchain à chaque      Seul le résultat
-                    rebalance)            est posté
+    mapping(bytes32 => HedgePosition) public positions; // noteId => position
 
-Sophistication      Hackathon-tier        Banking-grade
-                                          (Quant-level)
-```
+    uint256 public constant MAX_LEVERAGE = 3e18;     // 3x max
+    uint256 public constant DELTA_THRESHOLD = 500;    // 5% in bps
+    uint256 public constant NEGATIVE_FUNDING_LIMIT = 3; // 3 periods (24h)
 
-### Les Greeks — ce qu'ils signifient pour le protocole
+    /// @notice Open hedge for a new autocall note (PiggyBank strategy)
+    /// @param noteId The autocall note being hedged
+    /// @param xStock The xStock to hedge (e.g., NVDAx)
+    /// @param notional USDC notional of the note
+    function openHedge(
+        bytes32 noteId,
+        address xStock,
+        uint256 notional
+    ) external {
+        // Step 1: Buy xStocks spot via 1inch
+        uint256 xStockAmount = swapper.swap(
+            USDC, xStock, notional, 0 // minOut handled by 1inch
+        );
 
-| Greek | Formule | Utilisation dans le protocole |
-|-------|---------|------------------------------|
-| **Delta (Δ)** | ∂V/∂S | Combien de xStocks détenir dans le hedge. Lu par DeltaHedgeEngine pour rebalancer via 1inch. |
-| **Gamma (Γ)** | ∂²V/∂S² | Vitesse de changement du delta. Gamma élevé près de la barrière = rebalancer plus souvent = plus de gamma P&L. |
-| **Vega (ν)** | ∂V/∂σ | Sensibilité à la volatilité. Utilisé pour pricer les nouvelles notes : haute vol → coupon plus élevé. |
-| **Theta (Θ)** | ∂V/∂t | Time decay. La valeur du put embedded diminue avec le temps → favorable à l'underwriter si pas de knock-in. |
-| **Rho (ρ)** | ∂V/∂r | Sensibilité au taux. Si les taux Euler montent, le fair coupon change. |
+        // Step 2: Collateralize xStocks on Euler EVK
+        IERC20(xStock).approve(address(eulerVault), xStockAmount);
+        eulerVault.deposit(xStockAmount, address(this));
+        eulerVault.enableCollateral(address(this), address(eulerVault));
 
-### Flow de données complet
+        // Step 3: Borrow USDC against xStocks (conservative LTV)
+        uint256 borrowAmount = (notional * 50) / 100; // 50% LTV
+        eulerVault.borrow(borrowAmount, address(this));
 
-```
-  Chainlink Data Streams     Historical Price API      Euler Vault
-         │                          │                       │
-         │ spot price               │ 90d prices            │ lending rate
-         │                          │                       │
-         ▼                          ▼                       ▼
-  ┌──────────────────────────────────────────────────────────────┐
-  │                    CRE PRICING WORKFLOW                       │
-  │                                                               │
-  │  vol = EWMA(historical_prices)                               │
-  │  MC(spot, vol, rate, barriers) → noteValue, Greeks           │
-  │  binarySearch(MC, target=1.0) → fairCoupon                  │
-  │  bumpReprice(MC, spot±ε) → delta, gamma                     │
-  │  stressTest(MC, spot×0.7) → VaR, expected loss              │
-  └──────────────────────┬───────────────────────────────────────┘
-                         │
-                         │ updatePricing(noteId, delta, gamma, ...)
-                         ▼
-                  PricingOracle.sol
-                    │         │         │
-          ┌─────────┘         │         └──────────┐
-          ▼                   ▼                    ▼
-  DeltaHedgeEngine     NoteFactory          RiskManager
-  "rebalance to        "price new notes     "pool health,
-   delta=0.42"          at fairCoupon"       utilization ok?"
-       │                     │                    │
-       ▼                     ▼                    ▼
-   1inch swap          New note with          Block new notes
-   (buy/sell           market-derived         if VaR > threshold
-    xStocks)           coupon rate
-```
+        // Step 4: Open short perp on Aster DEX (delta hedge)
+        aster.openShort(xStock, notional); // notional-equivalent short
 
----
+        // Step 5: Record position
+        positions[noteId] = HedgePosition({
+            xStock: xStock,
+            spotAmount: xStockAmount,
+            perpShortSize: notional,
+            collateralOnEuler: xStockAmount,
+            borrowedUSDC: borrowAmount,
+            fundingAccrued: 0,
+            lastRebalance: block.timestamp
+        });
+    }
 
-## Analyse Globale du Document
+    /// @notice Collect funding rate from Aster (called by Chainlink Automation)
+    function collectFunding(bytes32 noteId) external {
+        HedgePosition storage pos = positions[noteId];
+        uint256 funding = aster.claimFunding(pos.xStock);
+        pos.fundingAccrued += funding;
+    }
 
-### Forces de l'architecture
+    /// @notice Rebalance if delta drifts (called by Chainlink Automation)
+    function rebalance(bytes32 noteId) external {
+        HedgePosition storage pos = positions[noteId];
 
-1. **Fidélité TradFi maximale** — Le protocole réplique exactement les 3 composants d'un desk de structuration :
-   - Pricing engine (Monte Carlo CRE) = le quant
-   - Delta hedge engine = le trader
-   - Risk manager = le risk desk
+        uint256 spotValue = priceFeed.getPrice(pos.xStock) * pos.spotAmount / 1e18;
+        uint256 perpValue = pos.perpShortSize;
 
-2. **Séparation compute off-chain / settlement onchain** — Le pattern Chainlink standard : calcul lourd off-chain (CRE), résultats vérifiables onchain (PricingOracle). Zero gas pour le pricing.
+        // Check delta drift
+        uint256 delta = spotValue > perpValue
+            ? ((spotValue - perpValue) * 10000) / spotValue
+            : ((perpValue - spotValue) * 10000) / perpValue;
 
-3. **Le two-sided model est économiquement sound** — L'investisseur vend un put, l'underwriter l'achète. Le coupon est la prime. C'est un dérivé zero-sum fully collateralized. Pas de magic money.
+        if (delta > DELTA_THRESHOLD) {
+            // Rebalance: adjust perp size to match spot
+            if (spotValue > perpValue) {
+                aster.increaseShort(pos.xStock, spotValue - perpValue);
+            } else {
+                aster.decreaseShort(pos.xStock, perpValue - spotValue);
+            }
+            pos.perpShortSize = spotValue;
+            pos.lastRebalance = block.timestamp;
+        }
+    }
 
-4. **Integration depth maximale** — Le protocole est un participant actif du marché xStocks : il achète, détient, rebalance, vend, et livre des xStocks en continu via 1inch.
+    /// @notice Close hedge on autocall/settlement
+    function closeHedge(bytes32 noteId) external returns (uint256 xStocksReturned) {
+        HedgePosition storage pos = positions[noteId];
 
-5. **Extensible** — Le même pricing engine supporte single-asset ET worst-of basket (corrélation multi-asset). Ajouter un nouveau produit = ajouter un nouveau payoff dans le Monte Carlo.
+        // Close perp short on Aster
+        aster.closeShort(pos.xStock);
 
-### Risques et points faibles
+        // Repay Euler borrow
+        eulerVault.repay(pos.borrowedUSDC);
 
-1. **Complexité pour le hackathon** — C'est un système ambitieux. Pour 3 jours, il faudra prioriser : MVP = NoteVault + UnderwriterPool + simplified delta + CRE observation. Le Monte Carlo complet peut être une v1.1.
+        // Withdraw xStocks from Euler
+        xStocksReturned = eulerVault.withdraw(
+            pos.collateralOnEuler, address(this), address(this)
+        );
 
-2. **Liquidité xStocks** — Le delta-hedging suppose qu'on peut acheter/vendre des xStocks sans trop de slippage. Si la liquidité xStocks sur 1inch est faible, les rebalancings seront coûteux.
-
-3. **Bootstrapping problem** — Qui underwrite en premier ? Sans underwriters, pas de notes. Sans notes, pas d'underwriters. Solution : seed le pool avec du capital initial (team + partenaires).
-
-4. **Oracle risk** — Tout dépend de la fiabilité des prix Chainlink Data Streams pour xStocks. Un mauvais prix = un faux knock-in ou un faux autocall.
-
-5. **Smart contract risk** — Le protocole détient des xStocks + USDC. Bug = perte de fonds. Audit indispensable post-hackathon.
-
----
-
-## Features TradFi à implémenter
-
-### Les 3 barrières (pas 2)
-
-En TradFi, la plupart des autocalls ont **3 barrières**, pas 2 :
-
-```
-Autocall barrier : 100%  → Si prix ≥ 100% à une obs → termination + principal + coupons
-Coupon barrier :    80%  → Si prix ≥ 80% à une obs → coupon payé (même sans autocall)
-Knock-in barrier :  70%  → Si prix < 70% à une obs → flag KI activé
-
-Zones :
-  Prix ≥ 100%  → AUTOCALL (tout le monde est content)
-  80% ≤ Prix < 100% → Coupon payé, pas d'autocall (on continue)
-  70% ≤ Prix < 80%  → PAS de coupon, PAS de knock-in (zone morte)
-  Prix < 70%   → Knock-in activé + pas de coupon
+        delete positions[noteId];
+    }
+}
 ```
 
-### Memory Coupon
+### FundingArbStrategy.sol (pour le vault USDC)
 
-Feature standard en TradFi : si un coupon est manqué (prix sous coupon barrier), il est **accumulé** et payé au prochain observation date où le prix est au-dessus du coupon barrier.
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 
-```
-Exemple :
-  Q1: NVDAx à 75% → sous coupon barrier (80%) → coupon MANQUÉ, accumulé ($300)
-  Q2: NVDAx à 85% → au-dessus → coupon Q2 ($300) + coupon rattrapé Q1 ($300) = $600 payé
-```
+/// @notice PiggyBank USDC strategy replicated on EVM
+/// Buy xStocks spot + short perps = delta-neutral + capture funding rate
+/// This is exactly how PiggyBank achieves 20.84% APY on USDC
+contract FundingArbStrategy {
 
-Ça rend le produit plus attractif pour l'investisseur (il ne perd pas définitivement les coupons).
+    IAsterAdapter public aster;
+    IOneInchSwapper public swapper;
 
-### Knock-in ≠ perte automatique (CRITIQUE)
+    struct ArbPosition {
+        address xStock;
+        uint256 spotAmount;
+        uint256 perpShortNotional;
+        uint256 fundingCollected;
+    }
 
-```
-Knock-in = flag activé, PAS settlement immédiat.
-Le settlement ne se fait qu'à MATURITÉ.
+    ArbPosition[] public positions;
 
-À maturité, si knock-in flag = true :
-  - Prix final ≥ prix initial → principal remboursé (PAS de perte)
-  - Prix final < prix initial → physical delivery à perte
+    /// @notice Deploy USDC into funding rate arb
+    /// Diversified across multiple xStocks for lower risk
+    function deploy(uint256 usdcAmount) external {
+        // Split across 3+ xStocks for diversification
+        // (same as PiggyBank splits across multiple assets)
+        uint256 perAsset = usdcAmount / 3;
 
-Le stock PEUT remonter après avoir touché la barrière knock-in.
-C'est ce qui rend les autocalls moins risqués que leur apparence :
-historiquement, ~30% des knock-ins se terminent avec le stock
-au-dessus du prix initial à maturité.
-```
+        address[3] memory xStocks = [NVDAx, TSLAx, METAx];
 
-### Dividendes xStocks
+        for (uint i = 0; i < 3; i++) {
+            // Buy xStock spot
+            uint256 amount = swapper.swap(USDC, xStocks[i], perAsset, 0);
 
-Les xStocks sont des actions tokenisées. Les dividendes impactent le pricing :
-- Chainlink Data Streams v10 inclut `currentMultiplier` et `newMultiplier` pour les corporate actions
-- Les dividendes réduisent le prix du stock (ex-div) → affectent les barrières
-- Le pricing Monte Carlo doit intégrer le dividend yield dans le drift GBM : `(r - q - σ²/2)dt` où `q` = dividend yield
+            // Short equivalent perp on Aster
+            aster.openShort(xStocks[i], perAsset);
 
----
+            positions.push(ArbPosition({
+                xStock: xStocks[i],
+                spotAmount: amount,
+                perpShortNotional: perAsset,
+                fundingCollected: 0
+            }));
+        }
+    }
 
-## Partner Mapping Détaillé
+    /// @notice Harvest funding rate yield
+    function harvest() external returns (uint256 totalYield) {
+        for (uint i = 0; i < positions.length; i++) {
+            uint256 funding = aster.claimFunding(positions[i].xStock);
+            positions[i].fundingCollected += funding;
+            totalYield += funding;
+        }
+    }
 
-### Chainlink — Le cerveau du protocole
+    /// @notice Check if funding rate is negative — switch to safe mode
+    function checkFundingHealth() external view returns (bool healthy) {
+        // If funding rate negative for > 24h, return false
+        // YieldRouter will switch allocation to Euler lending
+    }
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                       CHAINLINK                              │
-│                                                               │
-│  DATA STREAMS v10 (tokenized equity schema)                  │
-│  ├── Spot price NVDAx, TSLAx, SPYx, etc.                   │
-│  ├── marketStatus (open/closed → bloquer les obs hors marché)│
-│  ├── currentMultiplier / newMultiplier (corporate actions)   │
-│  ├── tokenizedPrice (prix ajusté pour le token)              │
-│  └── Utilisé par : PricingOracle.sol, DeltaHedgeEngine.sol  │
-│                                                               │
-│  CRE (Chainlink Runtime Environment)                         │
-│  ├── PRICING WORKFLOW (daily 16h30 ET)                       │
-│  │   ├── Monte Carlo 10,000 paths → noteValue, fair coupon   │
-│  │   ├── Greeks (bump-and-reprice) → delta, gamma, vega      │
-│  │   ├── Risk metrics → P(knock-in), VaR 95%                │
-│  │   └── Post results → PricingOracle.sol                    │
-│  │                                                            │
-│  ├── OBSERVATION WORKFLOW (at each observation date)          │
-│  │   ├── Fetch spot price from Data Streams                  │
-│  │   ├── Check autocall barrier → trigger settlement          │
-│  │   ├── Check knock-in barrier → set flag                   │
-│  │   ├── Check coupon barrier → trigger coupon payment        │
-│  │   └── Call ObservationEngine.sol                           │
-│  │                                                            │
-│  └── REBALANCING WORKFLOW (on delta change > 5%)             │
-│      ├── Read new delta from PricingOracle                   │
-│      ├── Calculate xStock position adjustment                 │
-│      ├── Call DeltaHedgeEngine.rebalance()                    │
-│      └── Which triggers 1inch swap                            │
-│                                                               │
-│  Où dans le code :                                            │
-│  ├── PricingOracle.sol — reçoit les résultats CRE            │
-│  ├── ObservationEngine.sol — déclenché par CRE               │
-│  ├── DeltaHedgeEngine.sol — lit delta depuis PricingOracle   │
-│  └── NoteFactory.sol — lit fair coupon pour nouvelles notes  │
-└─────────────────────────────────────────────────────────────┘
+    /// @notice Total value: spot + unrealized PnL + collected funding
+    function totalValue() external view returns (uint256) {
+        // ...
+    }
+}
 ```
 
-### Euler Finance — La trésorerie
+### EulerStrategy.sol
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      EULER FINANCE                            │
-│                                                               │
-│  ERC-4626 USDC Vault                                         │
-│  ├── Idle USDC (investor capital non-hedgé) → deposit         │
-│  ├── Underwriter pool capital → deposit                       │
-│  ├── Yield : ~3-7% APY sur USDC                              │
-│  ├── Withdraw on : coupon payment, autocall, maturity, KI     │
-│  └── Le yield complète le coupon de l'underwriter             │
-│                                                               │
-│  EulerEarn (meta-vault, optionnel v2)                        │
-│  └── Route vers les meilleurs vaults Euler automatiquement   │
-│                                                               │
-│  Potentiel v2 : xStocks comme collateral                     │
-│  ├── Deposit NVDAx → borrow USDC → redéployer en yield      │
-│  ├── Améliore capital efficiency du delta-hedge               │
-│  └── Mais ajoute liquidation risk → trop complexe pour MVP   │
-│                                                               │
-│  Où dans le code :                                            │
-│  └── EulerAdapter.sol                                         │
-│      ├── deposit(uint256 amount) — USDC → Euler vault         │
-│      ├── withdraw(uint256 amount) — Euler vault → USDC        │
-│      ├── getBalance() — montant + yield accrued               │
-│      └── Interface ERC-4626 standard                          │
-└─────────────────────────────────────────────────────────────┘
-```
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 
-### 1inch — Le bras d'exécution
+/// @notice Simple USDC lending on Euler Finance
+/// Safe yield (3-5% ann), used as base strategy and fallback
+contract EulerStrategy {
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         1INCH                                 │
-│                                                               │
-│  SWAP API / FUSION (MEV-protected, gasless)                  │
-│                                                               │
-│  Quand on l'utilise :                                        │
-│  ├── NOTE CREATION : acheter delta% de NVDAx avec USDC      │
-│  │   → 1inch Fusion swap USDC → NVDAx                       │
-│  │                                                            │
-│  ├── REBALANCING (chaque observation + price triggers) :     │
-│  │   ├── Delta monte → BUY more NVDAx (USDC → NVDAx)        │
-│  │   └── Delta baisse → SELL NVDAx (NVDAx → USDC)           │
-│  │                                                            │
-│  ├── KNOCK-IN DELIVERY :                                     │
-│  │   → Compléter position à 100% du notionnel                │
-│  │   → Acheter remaining NVDAx à prix spot                   │
-│  │                                                            │
-│  ├── AUTOCALL / MATURITY (no KI) :                           │
-│  │   → Vendre TOUS les xStocks détenus (NVDAx → USDC)       │
-│  │   → Rembourser l'investisseur en USDC                     │
-│  │                                                            │
-│  └── REFERRAL FEES :                                         │
-│      → Protocol capture des 1inch referral fees              │
-│      → Revenue supplémentaire sur chaque swap                 │
-│                                                               │
-│  Pourquoi Fusion (pas simple swap) :                         │
-│  ├── MEV protection — les rebalancings sont prédictibles      │
-│  │   (CRE post le delta onchain → bot voit le trade arriver) │
-│  ├── Gasless — réduit le coût de rebalancing fréquent         │
-│  └── Better execution — resolvers en compétition              │
-│                                                               │
-│  Où dans le code :                                            │
-│  └── SwapAdapter.sol                                          │
-│      ├── buyXStock(address xstock, uint256 usdcAmount)       │
-│      ├── sellXStock(address xstock, uint256 amount)           │
-│      ├── getQuote(address xstock, uint256 amount) → price     │
-│      └── Uses 1inch Aggregation Router or Fusion API          │
-└─────────────────────────────────────────────────────────────┘
-```
+    IEulerVault public eulerVault;
+    IERC20 public usdc;
 
-### xStocks — L'actif central
+    /// @notice Deposit USDC into Euler lending vault
+    function deposit(uint256 amount) external {
+        usdc.approve(address(eulerVault), amount);
+        eulerVault.deposit(amount, address(this));
+    }
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        xSTOCKS                                │
-│                                                               │
-│  ERC-20 tokens (NVDAx, TSLAx, SPYx, AAPLx, etc.)           │
-│  1:1 backed by real shares (Backed Finance / Kraken)         │
-│                                                               │
-│  Comment le protocole utilise xStocks :                      │
-│  ├── ACHAT : à la création de note (delta-hedge initial)     │
-│  ├── DÉTENTION : dans le vault pendant la vie de la note     │
-│  ├── REBALANCING : achat/vente à chaque observation          │
-│  ├── PHYSICAL DELIVERY : livraison au wallet investisseur    │
-│  │   si knock-in + prix final < initial                      │
-│  └── VENTE : à l'autocall ou maturité sans KI               │
-│                                                               │
-│  Le protocole est un HOLDER ACTIF de xStocks :               │
-│  ├── Détient 25-100% du notionnel selon le delta             │
-│  ├── Trade activement via 1inch                               │
-│  ├── Crée de la demande d'achat et de la liquidité           │
-│  └── Score xStocks Relevance : ★★★★★                        │
-│                                                               │
-│  xStocks spécifiques pour le hackathon MVP :                 │
-│  ├── NVDAx (NVIDIA) — high vol (~40%), coupon attractif      │
-│  ├── TSLAx (Tesla) — très high vol (~55%), coupon max        │
-│  └── SPYx (S&P 500 ETF) — low vol (~15%), coupon modéré     │
-└─────────────────────────────────────────────────────────────┘
-```
+    /// @notice Withdraw USDC from Euler
+    function withdraw(uint256 amount) external returns (uint256) {
+        return eulerVault.withdraw(amount, msg.sender, address(this));
+    }
 
-### Ink (Kraken L2) — Roadmap post-hackathon
+    /// @notice Harvest yield (difference between current and last NAV)
+    function harvest() external returns (uint256 yield_) {
+        uint256 currentValue = eulerVault.maxWithdraw(address(this));
+        uint256 deposited = totalDeposited;
+        yield_ = currentValue > deposited ? currentValue - deposited : 0;
+    }
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    DEPLOYMENT STRATEGY                        │
-│                                                               │
-│  HACKATHON : Ethereum (Sepolia testnet pour demo)            │
-│  ├── xStocks ERC-20 tokens : ✓ disponibles sur Ethereum     │
-│  ├── Chainlink Data Streams + CRE : ✓                        │
-│  ├── Euler Finance : ✓                                       │
-│  ├── 1inch Aggregation + Fusion : ✓                          │
-│  ├── USDC : ✓                                                │
-│  └── = TOUS les partners fonctionnels, demo end-to-end      │
-│                                                               │
-│  INK : Migration dès que les partners lancent                │
-│  ├── Chainlink Data Streams : déjà sur Ink ✓                │
-│  ├── CRE, Euler, 1inch : pas encore → migration planifiée   │
-│  ├── Ink = OP Stack = migration triviale (même bytecode)     │
-│  └── Pitch : "Live on Ethereum today, Ink-native tomorrow"  │
-│                                                               │
-│  Gas fees mainnet = argument pour Ink :                       │
-│  "Le delta-hedging fréquent coûte cher sur L1.              │
-│   Ink L2 réduit le gas de 100x, rendant le rebalancing      │
-│   quasi-gratuit — c'est pour ça qu'on veut migrer sur Ink." │
-└─────────────────────────────────────────────────────────────┘
+    function totalValue() external view returns (uint256) {
+        return eulerVault.maxWithdraw(address(this));
+    }
+}
 ```
 
 ---
 
-## MEV & Front-running Protection
+## 6. Euler EVK Integration — xStocks Collateral
 
-Le delta-hedging crée un risque MEV : quand CRE poste un nouveau delta onchain, les bots voient le swap arriver.
+### Creer un vault xStocks sur Euler (permissionless)
 
+Euler EVK permet de creer des vaults pour **n'importe quel ERC-20**, y compris les xStocks.
+Factory : `0x29a56a1b8214D9Cf7c5561811750D5cBDb45CC8e`
+
+```solidity
+// Deployer un vault pour NVDAx sur Euler
+IEVaultFactory factory = IEVaultFactory(0x29a56a1b8214D9Cf7c5561811750D5cBDb45CC8e);
+
+// Create vault with NVDAx as underlying
+address nvdaVault = factory.createProxy(
+    address(0), // no upgradeable
+    true,       // yes upgradeable (governance)
+    abi.encodePacked(
+        NVDAx_ADDRESS,          // underlying asset
+        CHAINLINK_NVDA_ORACLE,  // oracle
+        USDC_ADDRESS            // reference asset for LTV
+    )
+);
+
+// Configure LTV
+IEVault(nvdaVault).setLTV(
+    USDC_VAULT,     // collateral vault (USDC)
+    0.50e18,        // borrow LTV: 50%
+    0.65e18,        // liquidation LTV: 65%
+    0               // ramp duration
+);
 ```
-Risque :
-  CRE poste delta = 0.45 (était 0.30) → le vault va acheter 15 NVDAx
-  Bot front-runs : achète NVDAx avant le vault → prix monte
-  Vault achète à un prix gonflé → slippage pour le pool
 
-Solutions :
-  1. 1inch Fusion : les swaps sont exécutés par des resolvers en compétition,
-     MEV-protected par design
-  2. Private mempool : soumettre les tx via Flashbots/MEV Blocker
-  3. Batch rebalancing : regrouper les rebalancings de toutes les notes
-     en une seule tx pour masquer l'intention individuelle
-  4. Time-delayed execution : CRE poste le delta, mais le rebalance
-     s'exécute après un délai aléatoire (1-30 min)
+### User flow atomique (EVC batch)
+
+```solidity
+// En une seule transaction via EVC :
+IEVC evc = IEVC(EVC_ADDRESS);
+
+IEVC.BatchItem[] memory items = new IEVC.BatchItem[](4);
+
+// 1. Deposit xStocks as collateral
+items[0] = IEVC.BatchItem({
+    targetContract: nvdaVault,
+    onBehalfOfAccount: user,
+    value: 0,
+    data: abi.encodeCall(IEVault.deposit, (nvdaAmount, user))
+});
+
+// 2. Enable as collateral
+items[1] = IEVC.BatchItem({
+    targetContract: address(evc),
+    onBehalfOfAccount: user,
+    value: 0,
+    data: abi.encodeCall(IEVC.enableCollateral, (user, nvdaVault))
+});
+
+// 3. Enable controller (USDC vault)
+items[2] = IEVC.BatchItem({
+    targetContract: address(evc),
+    onBehalfOfAccount: user,
+    value: 0,
+    data: abi.encodeCall(IEVC.enableController, (user, usdcVault))
+});
+
+// 4. Borrow USDC
+items[3] = IEVC.BatchItem({
+    targetContract: usdcVault,
+    onBehalfOfAccount: user,
+    value: 0,
+    data: abi.encodeCall(IEVault.borrow, (usdcAmount, user))
+});
+
+evc.batch(items);
 ```
 
 ---
 
-## Vision Long-terme
+## 7. Aster DEX Integration — Perp Positions
 
-- **Phase 1** : xYield Notes (hackathon MVP — single autocall with delta-hedge)
-- **Phase 2** : xRisk Market (full underwriting marketplace, multiple products, advanced Greeks)
-- **Phase 3** : Structured products infrastructure on xStocks (reverse convertibles, range accruals, capital-protected notes, worst-of baskets)
+### Interface avec Aster
+
+```solidity
+interface IAsterAdapter {
+    /// @notice Open a short perpetual position
+    /// @param xStock The xStock to short (matched to Aster's market)
+    /// @param notional USDC-equivalent notional size
+    function openShort(address xStock, uint256 notional) external;
+
+    /// @notice Close a short perpetual position
+    function closeShort(address xStock) external;
+
+    /// @notice Increase short position size
+    function increaseShort(address xStock, uint256 additionalNotional) external;
+
+    /// @notice Decrease short position size
+    function decreaseShort(address xStock, uint256 reduceNotional) external;
+
+    /// @notice Claim accrued funding rate payments
+    function claimFunding(address xStock) external returns (uint256);
+
+    /// @notice Get current funding rate (annualized)
+    function getFundingRate(address xStock) external view returns (int256);
+
+    /// @notice Get position PnL
+    function getPositionPnL(address xStock) external view returns (int256);
+}
+```
+
+### Mapping xStocks → Aster Markets
+
+```solidity
+// Map xStock ERC-20 addresses to Aster market IDs
+mapping(address => bytes32) public xStockToAsterMarket;
+
+// Setup during deployment:
+// NVDAx → NVDA-USD perp on Aster
+// TSLAx → TSLA-USD perp on Aster
+// METAx → META-USD perp on Aster
+// etc.
+```
+
+---
+
+## 8. Chainlink Integration
+
+### Data Streams — Prix xStocks
+
+```solidity
+import {IFeeManager} from "@chainlink/contracts/src/v0.8/llo-feeds/interfaces/IFeeManager.sol";
+import {IVerifierProxy} from "@chainlink/contracts/src/v0.8/llo-feeds/interfaces/IVerifierProxy.sol";
+
+contract ChainlinkPriceFeed {
+    IVerifierProxy public verifier;
+
+    // Feed IDs for xStocks (Data Streams)
+    bytes32 public constant NVDA_FEED = 0x...; // NVDAx/USD
+    bytes32 public constant TSLA_FEED = 0x...; // TSLAx/USD
+    bytes32 public constant META_FEED = 0x...; // METAx/USD
+
+    struct PriceData {
+        uint256 price;
+        uint256 timestamp;
+        uint256 bid;
+        uint256 ask;
+    }
+
+    /// @notice Get verified price from Chainlink Data Streams
+    function getPrice(bytes32 feedId, bytes calldata report)
+        external returns (PriceData memory)
+    {
+        // Verify the report
+        bytes memory verifiedData = verifier.verify(report);
+
+        // Decode price data
+        (
+            bytes32 _feedId,
+            uint32 validFromTimestamp,
+            uint32 observationsTimestamp,
+            uint192 nativeFee,
+            uint192 linkFee,
+            uint32 expiresAt,
+            int192 benchmarkPrice,
+            int192 bid,
+            int192 ask
+        ) = abi.decode(verifiedData, (bytes32, uint32, uint32, uint192, uint192, uint32, int192, int192, int192));
+
+        return PriceData({
+            price: uint256(uint192(benchmarkPrice)),
+            timestamp: observationsTimestamp,
+            bid: uint256(uint192(bid)),
+            ask: uint256(uint192(ask))
+        });
+    }
+}
+```
+
+### Automation — Triggers automatiques
+
+```solidity
+import {AutomationCompatibleInterface} from "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
+
+contract ChainlinkKeeper is AutomationCompatibleInterface {
+    AutocallEngine public engine;
+    HedgeManager public hedgeManager;
+
+    /// @notice Check if any observation or rebalance is needed
+    function checkUpkeep(bytes calldata)
+        external view override
+        returns (bool upkeepNeeded, bytes memory performData)
+    {
+        // Check 1: Monthly autocall observations due
+        bytes32[] memory notesNeedingObservation = engine.getNotesReadyForObservation();
+        if (notesNeedingObservation.length > 0) {
+            return (true, abi.encode(1, notesNeedingObservation));
+        }
+
+        // Check 2: Hedge positions needing rebalance (delta > 5%)
+        bytes32[] memory notesNeedingRebalance = hedgeManager.getPositionsNeedingRebalance();
+        if (notesNeedingRebalance.length > 0) {
+            return (true, abi.encode(2, notesNeedingRebalance));
+        }
+
+        // Check 3: Funding rate collection (every 8h)
+        if (block.timestamp >= hedgeManager.lastFundingCollection() + 8 hours) {
+            return (true, abi.encode(3, new bytes32[](0)));
+        }
+
+        return (false, "");
+    }
+
+    /// @notice Execute the upkeep
+    function performUpkeep(bytes calldata performData) external override {
+        (uint8 action, bytes32[] memory noteIds) = abi.decode(performData, (uint8, bytes32[]));
+
+        if (action == 1) {
+            // Observe autocall notes
+            for (uint i = 0; i < noteIds.length; i++) {
+                engine.observe(noteIds[i]);
+            }
+        } else if (action == 2) {
+            // Rebalance hedge positions
+            for (uint i = 0; i < noteIds.length; i++) {
+                hedgeManager.rebalance(noteIds[i]);
+            }
+        } else if (action == 3) {
+            // Collect funding rates
+            hedgeManager.collectAllFunding();
+        }
+    }
+}
+```
+
+---
+
+## 9. Capital Flow — End-to-End
+
+```
+ETAPE 1 — DEPOT USDC
+═════════════════════
+Retail depose $10,000 USDC dans XYieldVault
+    → Recoit xyUSDC shares (ERC-4626)
+    → Protocole preleve origination fee ($30)
+    → Capital deploye :
+        ├── $5,000 → Euler lending (3-5% safe)
+        ├── $3,000 → Funding rate arb (PiggyBank strat)
+        │            ├── Buy $3,000 xStocks spot (1inch)
+        │            ├── Short $3,000 xStocks perps (Aster)
+        │            └── Capture funding rate every 8h
+        └── $2,000 → Reserve liquidite
+
+ETAPE 2 — CREATION AUTOCALL
+════════════════════════════
+AutocallEngine cree une note Phoenix :
+    → NoteToken ERC-1155 mint pour le retail
+    → Parametres : worst-of NVDAx/METAx/TSLAx, KI 50%, Cpn 12%
+    → Embedded fee 2% ($200) preleve
+    → Chainlink Automation programme les observations mensuelles
+
+ETAPE 3 — HEDGE (strategie PiggyBank)
+══════════════════════════════════════
+HedgeManager ouvre le hedge :
+    → Achete $10,000 de xStocks du basket via 1inch
+    → Collateralise les xStocks sur Euler EVK
+    → Emprunte $5,000 USDC contre les xStocks (50% LTV)
+    → Short $10,000 notionnel en perps sur Aster DEX
+    → Position = delta-neutral ✓
+    → Funding rate collecte toutes les 8h ← LE YIELD BONUS
+
+ETAPE 4 — VIE DE LA NOTE (6 mois)
+══════════════════════════════════
+Chaque mois, Chainlink Automation trigger :
+    → Chainlink Data Streams → prix NVDAx, METAx, TSLAx
+    → worst = min(NVDAx_perf, METAx_perf, TSLAx_perf)
+
+    Si worst ≥ coupon barrier (70%) :
+        → Coupon 1% paye au retail ($100)
+        → Memory : coupons rates recuperes aussi
+
+    Si worst ≥ autocall trigger (100% - step-down) :
+        → Autocall ! Principal + coupons rendus
+        → Hedge ferme (closeHedge)
+        → Auto-roll propose (ERC-7579)
+
+ETAPE 5a — AUTOCALL (75-85% des cas)
+═════════════════════════════════════
+    → $10,000 + coupons accumules → retail
+    → HedgeManager close : perp ferme + xStocks vendus via 1inch
+    → Funding rate accumule → protocol treasury
+    → Embedded fee ($200) → protocol
+    → Euler lending yield → protocol
+    → Proposition auto-roll pour nouvelle note
+
+ETAPE 5b — KI EVENT (5-10%)
+═══════════════════════════
+    → worst stock < 50% a maturite
+    → Physical delivery via 1inch :
+        $10,000 de xStocks du worst performer → retail
+    → Retail garde l'exposition equity (peut rebondir)
+    → Retail peut deposer ses xStocks sur un yield protocol
+    → Le hedge avait capture du funding rate pendant 6 mois
+      → protocol garde ce yield meme en cas de KI
+```
+
+---
+
+## 10. Epoch System (48h — calque PiggyBank)
+
+PiggyBank utilise un systeme d'epochs de 48h. On replique exactement :
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    EPOCH CYCLE (48h)                       │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  T+0h    │ SNAPSHOT                                      │
+│          │ ├── Calculate NAV of all strategies            │
+│          │ ├── Mark funding rate accrued                  │
+│          │ ├── Update xyUSDC share price                  │
+│          │ └── Lock new deposits until epoch end          │
+│          │                                                │
+│  T+0-24h │ WITHDRAWAL PROCESSING                         │
+│          │ ├── Process queued withdrawal requests         │
+│          │ ├── Unwind positions if needed                 │
+│          │ ├── 1inch swaps to convert back to USDC       │
+│          │ └── USDC sent to withdrawing users             │
+│          │                                                │
+│  T+24-48h│ REBALANCING                                   │
+│          │ ├── Check funding rate health                  │
+│          │ ├── If healthy: maintain arb allocation        │
+│          │ ├── If unhealthy: shift to Euler lending       │
+│          │ ├── Rebalance hedge deltas                     │
+│          │ ├── Collect funding from Aster                 │
+│          │ └── Deploy new deposits into strategies        │
+│          │                                                │
+│  T+48h   │ NEW EPOCH                                     │
+│          │ ├── Increment epoch counter                    │
+│          │ ├── Unlock deposits                            │
+│          │ └── Start new 48h cycle                        │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 11. Le coup de genie — Pourquoi GS ne peut pas repliquer
+
+### TradFi : le hedge COUTE
+
+```
+Goldman Sachs vend autocall NVDAx/METAx/TSLAx
+    → Doit hedger le risque directionnel
+    → Achete/vend options OTC + delta hedge en actions
+    → Gamma hedging = rebalancing frequent = COUT
+    → Bid-ask spreads sur options OTC = COUT
+    → Financing cost (emprunt titres) = COUT
+    → Total hedge cost : 1-4% du notionnel / an
+    → GS doit le compenser par des fees eleves (3-7%)
+```
+
+### DeFi : le hedge RAPPORTE
+
+```
+xYield vend autocall NVDAx/METAx/TSLAx
+    → Doit hedger le risque directionnel
+    → Achete xStocks spot via 1inch (= long = delta hedge ✓)
+    → Short perps sur Aster DEX (= renforce le delta hedge ✓)
+    → Position delta-neutral ✓
+    → MAIS : les longs paient le funding rate aux shorts
+    → Le hedge RAPPORTE 5-20% ann au lieu de couter 1-4%
+    → Le protocole peut offrir des fees plus bas (1-3%)
+      ET gagner plus que GS sur chaque note
+```
+
+### Pourquoi GS ne peut pas copier ca
+
+| Raison | Detail |
+|---|---|
+| **Pas de perps crypto/xStocks** | TradFi utilise des futures avec expiration. Le basis = risk-free rate (~4%), minus funding cost (~4.3%) = ~0% net |
+| **Reglementation** | Banques systemiques (G-SIBs) interdites d'operer sur des DEX non-regules |
+| **Capital requirements** | Crypto/DeFi positions = 1250% risk weight sous Basel III |
+| **Infrastructure** | GS ne peut pas deployer de smart contracts sur Aster DEX |
+| **Conflict of interest** | GS profite des fees eleves — reduire les fees cannibilise leur business |
+
+---
+
+## 12. Revenue Model
+
+### Par note $10,000 — maturite 6 mois
+
+| Source | Calcul | Montant |
+|---|---|---|
+| Embedded fee (2%) | $10,000 × 2% | **$200** |
+| Origination fee (0.3%) | $10,000 × 0.3% | **$30** |
+| Euler spread | $5,000 × 4% × 0.5an | **$100** |
+| Funding rate arb (perf fee 20%) | $3,000 × 12% × 0.5an × 20% | **$36** |
+| Hedge funding capture (perf fee 20%) | $10,000 × 10% × 0.5an × 20% | **$100** |
+| Auto-roll fee | $10,000 × 0.1% × 2 rolls | **$20** |
+| **Total protocol / note / an** | | **$486** |
+| **Protocol APY** | | **4.86%** |
+
+### Scaling
+
+| TVL | Revenue protocole/an |
+|---|---|
+| $1M | $48,600 |
+| $10M | $486,000 |
+| $100M | $4,860,000 |
+| $1B | $48,600,000 |
+
+---
+
+## 13. Risk Management
+
+### Automated (Chainlink Automation)
+
+| Trigger | Action |
+|---|---|
+| Delta drift > 5% | Rebalance perp position on Aster |
+| Funding rate negative > 24h | Shift allocation to Euler lending |
+| xStock price near liquidation | Add collateral or reduce leverage |
+| Epoch boundary (48h) | Full NAV recalc + rebalance |
+
+### Circuit Breakers
+
+| Condition | Response |
+|---|---|
+| Single xStock drops > 30% in 24h | Pause new note creation for that xStock |
+| Total vault drawdown > 5% in epoch | Emergency withdrawal processing |
+| Aster DEX smart contract issue | Fallback to Euler-only mode |
+| Chainlink feed stale > 1h | Pause observations, alert |
+
+---
+
+## 14. Frontend (Next.js + wagmi + viem)
+
+### Pages
+
+```
+/                  → Landing (pitch, APY display, comparison vs GS)
+/notes             → Browse active autocall notes (basket, coupon, maturity)
+/notes/[id]        → Note detail (observations, coupon history, current status)
+/vault             → USDC Vault (deposit/withdraw, xyUSDC balance, yield history)
+/dashboard         → Portfolio (my notes, my yield, P&L)
+/underwrite        → Underwriter interface (create notes, manage hedges)
+```
+
+### Key Components
+
+```
+components/
+├── NoteCard.tsx        → Autocall note preview (basket, coupon, KI, maturity)
+├── VaultDeposit.tsx    → USDC deposit form with epoch timing
+├── YieldDisplay.tsx    → Real-time yield from Euler + funding arb
+├── ObservationTimeline.tsx → Visual timeline of observations, coupons, status
+├── BasketChart.tsx     → Worst-of basket performance chart
+├── PnLTracker.tsx      → Portfolio P&L with breakdown
+└── CompareGS.tsx       → Side-by-side vs Goldman Sachs product
+```
+
+---
+
+## 15. Hackathon Deployment Plan
+
+### Pre-hackathon (16-30 mars)
+
+| Jour | Task |
+|---|---|
+| 16-18 mars | XYieldVault.sol + EulerStrategy.sol + tests Foundry |
+| 19-21 mars | AutocallEngine.sol + NoteToken.sol + ChainlinkPriceFeed.sol |
+| 22-24 mars | HedgeManager.sol + AsterAdapter.sol + FundingArbStrategy.sol |
+| 25-27 mars | Integration tests (fork Arbitrum mainnet) |
+| 28-30 mars | Frontend MVP + deploy testnet |
+
+### Hackathon (31 mars - 2 avril, Cannes)
+
+| Jour | Task |
+|---|---|
+| J1 (31 mars) | Deploy sur Arbitrum (ou Ethereum), demo end-to-end |
+| J2 (1 avril) | Polish, edge cases, pitch deck |
+| J3 (2 avril) | Video demo 2 min, presentations |
+
+### Demo Flow
+
+```
+1. Retail depose 1,000 USDC dans le vault → recoit xyUSDC
+2. Note autocall creee : NVDAx/METAx/TSLAx, KI 50%, Cpn 12%
+3. Hedge ouvre automatiquement (xStocks achetees, perps shorts sur Aster)
+4. Simulation d'observation mensuelle → coupon paye
+5. Simulation d'autocall trigger → principal + coupons rendus
+6. Dashboard montre yield accumule du funding rate arb
+7. Comparaison live : "GS prend 5% de fees, nous 1-2%"
+```
+
+---
+
+## 16. Pitch Structure (2 min)
+
+**0:00 — Hook**
+> "$125 milliards d'autocalls vendus chaque annee. Goldman Sachs prend 5% de fees.
+> Nous avons reconstruit le meme produit onchain — pour 1%."
+
+**0:20 — Le produit**
+> "Phoenix autocall sur xStocks. Worst-of NVDA/META/TSLA.
+> 12% de coupon annualise. Physical delivery en xStocks si KI touche."
+
+**0:40 — L'innovation**
+> "Premier autocall ou le hedge rapporte au lieu de couter.
+> On utilise la meme strategie que PiggyBank : long spot + short perps = funding rate capture.
+> Chez GS, le hedge coute 1-4%. Chez nous, il rapporte 5-20%."
+
+**1:00 — Demo live**
+> Montrer le flow : deposit → note → hedge → observation → coupon
+
+**1:30 — Chiffres**
+> "4.86% protocol APY. 7 partenaires integres.
+> 120,960 configurations simulees en Monte Carlo.
+> Blue ocean : zero produit structure onchain aujourd'hui."
+
+**1:50 — Close**
+> "Goldman Sachs pour le retail. Permissionless. Sur xStocks."
+
+---
+
+## 17. Partenaires Integres
+
+| Partenaire | Role | Integration |
+|---|---|---|
+| **xStocks** | Sous-jacent (NVDAx, METAx, TSLAx) | ERC-20 tokens |
+| **Euler Finance** | Lending USDC + xStocks collateral | ERC-4626 vaults + EVK |
+| **Aster DEX** | Stock perps on-chain (funding rate arb) | Smart contract (Eth/Arb) |
+| **Chainlink** | Data Streams (prix) + Automation (triggers) | Oracle + keeper |
+| **1inch** | Swap xStocks spot | Aggregator API |
+| **PiggyBank** | Strategie de reference (jury) | Architecture model |
+| **ERC-7579** | Auto-roll via smart account | Executor module |
+
+---
+
+*Architecture calquee sur PiggyBank (piggybank.fi). Meme strategie de funding rate arbitrage,
+adaptee de Solana (Kamino+Drift) vers EVM (Euler+Aster DEX). Premier autocall peer-to-peer
+onchain ou le delta hedge genere du yield. Document genere le 16 mars 2026.*

@@ -1,0 +1,183 @@
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+█  xYIELD v24 — OVERNIGHT DESIGN SPACE SWEEP — RESULTS
+█  120960 configurations analyzed
+█  Date: 2026-03-16
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  1. TOP 10 STRUCTURES BY PROTOCOL PROFITABILITY
+▓  Ranked by Protocol APY at Euler=5%, Jr=35%, normal regime
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  #  Basket            Mat    VRP  KI  CB  AC  Cpn   KI%   AC% SrAPY SrWin ProtAPY  BEuler AvgDur
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1 NVDA/TSLA/AMD      3mo-M    0%  30%  90%  95%   6%    0.0%   30%  +2.3%  100%   +12.7%    1.1%   0.22yr
+   2 NVDA/META/TSLA     3mo-M    0%  30%  90%  95%   6%    0.0%   30%  +2.4%  100%   +12.6%    1.2%   0.23yr
+   3 NVDA/TSLA/AMD      3mo-M    0%  30%  90% 100%   6%    0.0%   23%  +2.4%  100%   +12.3%    1.2%   0.23yr
+   4 NVDA/TSLA/AMD      3mo-M    0%  30%  90% 105%   6%    0.0%   18%  +2.5%  100%   +12.0%    1.3%   0.24yr
+   5 NVDA/META/TSLA     3mo-M    0%  30%  90% 100%   6%    0.0%   22%  +2.5%  100%   +11.9%    1.4%   0.23yr
+   6 NVDA/META/TSLA     3mo-M    0%  30%  90% 105%   6%    0.0%   13%  +2.6%  100%   +11.7%    1.4%   0.24yr
+   7 NVDA/AMD/META      3mo-M    0%  30%  90%  95%   6%    0.0%   36%  +2.7%  100%   +11.6%    1.5%   0.22yr
+   8 NVDA/TSLA/AMD      3mo-M   20%  40%  90%  95%   6%    0.0%   33%  +2.7%  100%   +11.5%    1.5%   0.22yr
+   9 NVDA/TSLA/AMD      3mo-M   20%  30%  90%  95%   6%    0.0%   35%  +2.8%  100%   +11.5%    1.5%   0.22yr
+  10 NVDA/AMD/META      3mo-M    0%  30%  90% 100%   6%    0.0%   25%  +2.8%  100%   +11.4%    1.5%   0.23yr
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  2. TOP 10 STRUCTURES BY ROBUSTNESS
+▓  Score = profitable across ALL regimes + high Sr win + low KI
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  #  Basket            Mat    VRP  KI  CB  AC  Cpn  RegProf%  AvgKI% AvgSrW  WorstPnL  Score
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1 META/AAPL/AMZN     3mo-M   30%  30%  70%  95%   6%    100%    0.0%   100%   $+   18  100.0
+   2 META/AAPL/AMZN     3mo-M   20%  30%  70% 100%   6%    100%    0.0%   100%   $+   17  100.0
+   3 META/AAPL/AMZN     3mo-M   30%  30%  70% 100%   6%    100%    0.0%   100%   $+   17  100.0
+   4 META/AAPL/AMZN     3mo-M   20%  30%  70% 105%   6%    100%    0.0%   100%   $+   17  100.0
+   5 META/AAPL/AMZN     3mo-M   30%  30%  70% 105%   6%    100%    0.0%   100%   $+   17  100.0
+   6 META/AAPL/AMZN     3mo-M   20%  30%  80%  95%   6%    100%    0.0%   100%   $+   19  100.0
+   7 META/AAPL/AMZN     3mo-M   30%  30%  80%  95%   6%    100%    0.0%   100%   $+   18  100.0
+   8 META/AAPL/AMZN     3mo-M   30%  30%  80% 100%   6%    100%    0.0%   100%   $+   18  100.0
+   9 META/AAPL/AMZN     3mo-M   20%  30%  80% 105%   6%    100%    0.0%   100%   $+   18  100.0
+  10 META/AAPL/AMZN     3mo-M   30%  30%  80% 105%   6%    100%    0.0%   100%   $+   17  100.0
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  3. BEST RETAIL-FRIENDLY STRUCTURE
+▓  Criteria: SrAPY > 5%, SrWin > 99%, KI < 2%, profitable at E=5%
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  #  Basket            Mat    VRP  KI  CB  AC  Cpn   KI%  SrAPY SrWin ProtAPY  BEuler
+  ────────────────────────────────────────────────────────────────────────────────────────────────────
+   1 NVDA/META/AMZN     3mo-M   20%  30%  80%  95%   8%    0.0%  +6.8% 100.0%   +0.0%    5.0%
+   2 META/AAPL/AMZN     3mo-M   20%  40%  90%  95%  10%    0.0%  +6.8% 100.0%   +0.1%    5.0%
+   3 NVDA/META          3mo-M   20%  40%  80%  95%   8%    0.0%  +6.8% 100.0%   +0.0%    5.0%
+   4 NVDA/META/AMZN     3mo-M   20%  40%  80%  95%   8%    0.0%  +6.8% 100.0%   +0.1%    5.0%
+   5 NVDA/META/AMZN     3mo-M   20%  40%  90%  95%  12%    0.0%  +6.7% 100.0%   +0.2%    5.0%
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  4. BEST PROTOCOL-MAXIMIZING STRUCTURE
+▓  Criteria: Highest ProtAPY at E=8%, Jr=50%, KI < 10%
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  At Euler=8%, Jr=50%:
+  #  Basket            Mat    VRP  KI  CB  AC  Cpn   KI%  SrAPY SrWin ProtAPY  BEuler
+  ────────────────────────────────────────────────────────────────────────────────────────────────────
+   1 NVDA/TSLA/AMD      3mo-M    0%  30%  90%  95%   6%    0.0%  +2.3%  100%  +22.5%    1.1%
+   2 NVDA/META/TSLA     3mo-M    0%  30%  90%  95%   6%    0.0%  +2.4%  100%  +22.4%    1.2%
+   3 NVDA/TSLA/AMD      3mo-M    0%  30%  90% 100%   6%    0.0%  +2.4%  100%  +22.2%    1.2%
+   4 NVDA/TSLA/AMD      3mo-M    0%  30%  90% 105%   6%    0.0%  +2.5%  100%  +21.9%    1.3%
+   5 NVDA/META/TSLA     3mo-M    0%  30%  90% 100%   6%    0.0%  +2.5%  100%  +21.8%    1.4%
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  5. PARAMETER SENSITIVITY HEATMAPS
+▓  Average ProtAPY across all baskets, normal regime, Euler=5%, Jr=35%
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  5a. KI Barrier × Coupon Rate (avgProtAPY at E=5%)
+              Cpn6%    Cpn8%   Cpn10%   Cpn12%   Cpn14%
+  ─────────────────────────────────────────────────────
+  KI= 30%     +5.6%    +1.4%    -2.8%    -7.0%   -11.2%
+  KI= 40%     +4.1%    -0.1%    -4.3%    -8.5%   -12.8%
+  KI= 50%     -2.6%    -6.8%   -11.0%   -15.3%   -19.5%
+  KI= 60%    -21.2%   -25.4%   -29.7%   -33.8%   -37.8%
+
+  5b. Maturity × VRP (avgProtAPY at E=5%)
+                VRP0%   VRP20%   VRP30%
+  ─────────────────────────────────────
+  3mo-M        -13.9%    -7.2%    -6.1%
+  6mo-Q        -22.6%   -12.5%    -9.4%
+
+  5c. KI Barrier × Coupon Barrier (avgProtAPY at E=5%)
+             CB=70%   CB=80%   CB=90%
+  ───────────────────────────────────
+  KI= 30%     -7.6%    -3.7%    +2.9%
+  KI= 40%     -9.1%    -5.3%    +1.3%
+  KI= 50%    -15.7%   -12.0%    -5.4%
+  KI= 60%    -34.2%   -30.5%   -24.1%
+
+  5d. Basket × VRP (avgProtAPY at E=5%)
+                          VRP0%   VRP20%   VRP30%
+  ───────────────────────────────────────────────
+  NVDA/AMD/META          -19.5%    -9.7%    -7.3%
+  NVDA/META/AMZN         -16.2%    -8.7%    -7.1%
+  META/AAPL/AMZN          -6.8%    -6.2%    -6.6%
+  NVDA/AMD               -21.2%   -10.8%    -8.2%
+  NVDA/META              -17.7%    -9.6%    -7.7%
+  NVDA/TSLA/AMD          -29.9%   -13.9%    -9.1%
+  NVDA/META/TSLA         -27.2%   -12.9%    -8.7%
+  META/AAPL               -7.3%    -6.9%    -7.3%
+
+  5e. Regime Impact (avgProtAPY at E=5%, across all structures)
+  ────────────────────────────────────────────────────────────
+  2020_crash                ProtAPY:  -64.4%  KI:  23.1%  SrWin:   85%
+  2022_bear                 ProtAPY:  -34.1%  KI:  13.4%  SrWin:   92%
+  crash_decorr              ProtAPY:  -74.1%  KI:  28.4%  SrWin:   76%
+  crash_normal              ProtAPY:  -70.1%  KI:  25.9%  SrWin:   80%
+  crash_spike               ProtAPY:  -64.1%  KI:  22.6%  SrWin:   85%
+  high_decorr               ProtAPY:  -26.1%  KI:   8.7%  SrWin:   94%
+  high_normal               ProtAPY:  -25.5%  KI:   8.0%  SrWin:   95%
+  high_spike                ProtAPY:  -24.4%  KI:   6.9%  SrWin:   96%
+  low_decorr                ProtAPY:   -6.7%  KI:   0.6%  SrWin:  100%
+  low_normal                ProtAPY:   -7.0%  KI:   0.5%  SrWin:  100%
+  low_spike                 ProtAPY:   -7.5%  KI:   0.5%  SrWin:  100%
+  normal_decorr             ProtAPY:  -11.7%  KI:   3.4%  SrWin:   98%
+  normal_normal             ProtAPY:  -11.9%  KI:   3.1%  SrWin:   98%
+  normal_spike              ProtAPY:  -12.0%  KI:   2.7%  SrWin:   99%
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  6. REGIONS WHERE THE MODEL BREAKS
+▓  Configurations with KI > 20%, SrWin < 90%, or extreme losses
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  Total dangerous configs: 868 / 8640 (10.0%)
+
+  Danger rate by KI barrier:
+    KI=30%: 0% dangerous (0/2160)
+    KI=40%: 0% dangerous (0/2160)
+    KI=50%: 9% dangerous (184/2160)
+    KI=60%: 32% dangerous (684/2160)
+
+  Danger rate by maturity:
+    3mo-M: 2% dangerous (80/4320)
+    6mo-Q: 18% dangerous (788/4320)
+
+  Danger rate by coupon:
+    Cpn=6%: 7% dangerous (122/1728)
+    Cpn=8%: 9% dangerous (148/1728)
+    Cpn=10%: 10% dangerous (168/1728)
+    Cpn=12%: 12% dangerous (200/1728)
+    Cpn=14%: 13% dangerous (230/1728)
+
+  CRASH REGIME: 7285/17280 configs (42%) have KI>30% or SrWin<80%
+  Crash avg KI: 24.3%  Crash avg SrWin: 82%
+  Crash survivors (KI<10%, SrWin>90%): 5201 configs
+    NVDA/AMD/META 3mo-M KI=30% CB=90% VRP=30% → KI:0.0% SrWin:100%
+    NVDA/AMD/META 3mo-M KI=30% CB=80% VRP=30% → KI:0.0% SrWin:100%
+    NVDA/AMD/META 3mo-M KI=30% CB=80% VRP=30% → KI:0.0% SrWin:100%
+
+
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+█  7. SUMMARY STATISTICS
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+
+  Total configs analyzed:           120960
+  Normal regime configs:             8640
+  Profitable at E=5% (normal):       2157 (25.0%)
+  Profitable at E=4% (normal):       1121 (13.0%)
+  Avg breakeven Euler (normal):      8.6%
+
+  BEST STRUCTURE (by ProtAPY):
+    NVDA/TSLA/AMD 3mo-M KI=30% CB=90% AC=95% Cpn=6% VRP=0%
+    ProtAPY: +12.7% | SrAPY: +2.3% | KI: 0.0% | BEuler: 1.1%
+
+  MOST ROBUST STRUCTURE:
+    META/AAPL/AMZN 3mo-M KI=30% CB=70% AC=95% Cpn=6% VRP=30%
+    Profitable in 100% of regimes | AvgKI: 0.0% | Score: 100.0
+
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+█  xYield v24 COMPLETE — Design space mapped
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████

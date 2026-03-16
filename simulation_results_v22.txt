@@ -1,0 +1,314 @@
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+█  xYIELD v22 — RISKY STRUCTURES EXPLORATION
+█  Higher KI barriers + high coupon barriers + skew premium + short maturity
+█  Target: KI probability 5-20%, find structures where VRP creates real edge
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  PART 1 — RISKY STRUCTURE SWEEP (Euler=0, VRP=0, no skew)
+▓  KI:[35-55%] CB:[75-90%] Mat:[3mo,6mo,9mo] AC:[95-105%] Cpn:[8-20% ann]
+▓  Filter: KI probability 5-20%
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  Total param combos: 1080 × 4 baskets = 4320 configs × 1500 paths
+
+  NVDA/TSLA/AMD: ... 1080 done
+  NVDA/AMD/META: ... 1080 done
+  NVDA/TSLA/META: ... 1080 done
+  NVDA/TSLA/AMZN: ... 1080 done
+
+  Total configs: 4320 | KI 5-20% filter: 2177 pass | Showing top 30
+
+    #Basket            Mat   KItype  KI  CB   AC CpnAn   KI%  AC%  SrAPY SrWin   OptPnL AvgDur  GammaPnL  CpnDrain  KILoss
+  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    1NVDA/AMD/META     3mo-M cont   55% 90%  95%    8%  4.1%  49%  +3.1%   97%  $-  284 0.21yr   $-    6   $-   78 $-  187
+    2NVDA/AMD/META     3mo-M cont   55% 90% 100%    8%  4.1%  35%  +2.9%   97%  $-  285 0.22yr   $-    8   $-   81 $-  185
+    3NVDA/TSLA/AMD     3mo-M cont   50% 85%  95%    8%  4.1%  44%  +2.5%   96%  $-  291 0.21yr   $-    5   $-   89 $-  205
+    4NVDA/TSLA/META    3mo-M euro   55% 90%  95%    8%  4.3%  41%  +1.9%   96%  $-  294 0.22yr   $-   11   $-   70 $-  214
+    5NVDA/TSLA/AMZN    3mo-M euro   55% 85%  95%    8%  4.0%  44%  +3.1%   96%  $-  301 0.21yr   $-    9   $-   91 $-  199
+    6NVDA/TSLA/AMZN    3mo-M euro   55% 90% 100%    8%  4.3%  32%  +1.9%   96%  $-  302 0.22yr   $-   15   $-   73 $-  216
+    7NVDA/TSLA/META    3mo-M euro   55% 90% 105%    8%  4.2%  21%  +2.1%   96%  $-  304 0.23yr   $-   15   $-   80 $-  213
+    8NVDA/TSLA/AMZN    3mo-M euro   55% 85% 100%    8%  4.1%  32%  +3.1%   96%  $-  311 0.22yr   $-   12   $-   95 $-  201
+    9NVDA/TSLA/META    3mo-M euro   55% 85%  95%    8%  4.3%  41%  +2.9%   96%  $-  313 0.22yr   $-    6   $-   91 $-  218
+   10NVDA/AMD/META     3mo-M cont   55% 85% 100%    8%  4.2%  38%  +4.0%   97%  $-  314 0.22yr   $-    8   $-  103 $-  192
+   11NVDA/TSLA/AMD     3mo-M cont   50% 90%  95%   12%  4.6%  40%  +2.9%   96%  $-  316 0.22yr   $+    5   $-   98 $-  232
+   12NVDA/TSLA/META    3mo-M euro   55% 90%  95%   12%  4.0%  42%  +3.6%   96%  $-  318 0.21yr   $-   11   $-  103 $-  203
+   13NVDA/TSLA/AMD     3mo-M euro   55% 90%  95%    8%  4.9%  39%  +1.4%   95%  $-  318 0.22yr   $-    6   $-   65 $-  254
+   14NVDA/TSLA/AMD     6mo-M euro   40% 85% 100%    8%  4.1%  60%  +0.7%   96%  $-  319 0.34yr   $+    2   $-  103 $-  268
+   15NVDA/TSLA/AMD     3mo-M euro   55% 85%  95%    8%  4.3%  41%  +2.8%   96%  $-  326 0.22yr   $-   17   $-   90 $-  222
+   16NVDA/TSLA/AMZN    3mo-M euro   55% 90% 105%   12%  4.0%  20%  +3.9%   96%  $-  329 0.23yr   $-   11   $-  116 $-  200
+   17NVDA/TSLA/AMD     6mo-M euro   40% 85% 105%    8%  4.0%  52%  +1.0%   96%  $-  330 0.37yr   $-    6   $-  113 $-  262
+   18NVDA/TSLA/META    3mo-M euro   55% 85% 105%    8%  4.7%  21%  +2.8%   95%  $-  333 0.23yr   $+    2   $-   97 $-  242
+   19NVDA/TSLA/AMZN    3mo-M cont   50% 75% 100%    8%  4.1%  32%  +4.7%   96%  $-  333 0.22yr   $+    1   $-  140 $-  204
+   20NVDA/TSLA/AMZN    3mo-M euro   55% 85% 105%    8%  4.6%  21%  +3.0%   95%  $-  334 0.23yr   $-    1   $-  102 $-  235
+   21NVDA/TSLA/META    3mo-M euro   55% 85% 100%    8%  4.7%  31%  +3.0%   95%  $-  334 0.22yr   $-    8   $-   96 $-  232
+   22NVDA/TSLA/AMD     3mo-M euro   55% 90% 105%    8%  5.1%  22%  +1.9%   95%  $-  335 0.23yr   $-    4   $-   74 $-  259
+   23NVDA/TSLA/META    3mo-M cont   50% 75%  95%    8%  4.4%  42%  +4.3%   96%  $-  337 0.21yr   $+    7   $-  131 $-  225
+   24NVDA/TSLA/AMD     3mo-M euro   55% 90%  95%   12%  4.3%  41%  +3.3%   96%  $-  337 0.22yr   $-   19   $-  101 $-  220
+   25NVDA/TSLA/META    3mo-M euro   55% 90% 100%   12%  4.6%  33%  +3.4%   95%  $-  341 0.22yr   $-    3   $-  108 $-  236
+   26NVDA/TSLA/AMZN    3mo-M euro   55% 90%  95%   12%  4.6%  43%  +3.6%   96%  $-  342 0.21yr   $-    7   $-  105 $-  231
+   27NVDA/TSLA/AMZN    3mo-M euro   55% 75% 100%    8%  4.0%  30%  +4.8%   96%  $-  346 0.23yr   $-    9   $-  137 $-  201
+   28NVDA/TSLA/AMZN    6mo-M cont   40% 90% 105%    8%  4.9%  52%  +0.1%   95%  $-  347 0.37yr   $-   13   $-   91 $-  301
+   29NVDA/AMD/META     3mo-M cont   55% 90%  95%   12%  5.0%  48%  +4.6%   96%  $-  349 0.21yr   $-    1   $-  115 $-  224
+   30NVDA/TSLA/AMD     3mo-M euro   55% 85% 105%    8%  4.9%  23%  +2.9%   95%  $-  349 0.23yr   $-    9   $-   98 $-  246
+
+  KI DISTRIBUTION across all configs:
+    KI≈0%: 1325 configs
+    KI≈5%: 1055 configs
+    KI≈10%: 662 configs
+    KI≈15%: 465 configs
+    KI≈20%: 266 configs
+    KI≈25%: 247 configs
+    KI≈30%: 113 configs
+    KI≈35%: 77 configs
+    KI≈40%: 57 configs
+    KI≈45%: 53 configs
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  PART 2 — VRP SENSITIVITY ON RISKY STRUCTURES (Euler=0, no skew)
+▓  Top 10 from Part 1 × VRP=[0%, 15%, 20%, 25%, 30%]
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+    #Basket            Mat     KI  CB    VRP0%   VRP15%   VRP20%   VRP25%   VRP30%   D(20%)   D(30%)   KI@0%  KI@20%  KI@30%
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    #1 NVDA/AMD/META 3mo-M... done
+    1NVDA/AMD/META     3mo-M  55% 90%  $-  282  $-  167  $-  157  $-  142  $-  127  $+  125  $+  154    4.0%    0.9%    0.1%
+    #2 NVDA/AMD/META 3mo-M... done
+    2NVDA/AMD/META     3mo-M  55% 90%  $-  282  $-  191  $-  156  $-  142  $-  144  $+  126  $+  138    3.9%    0.7%    0.3%
+    #3 NVDA/TSLA/AMD 3mo-M... done
+    3NVDA/TSLA/AMD     3mo-M  50% 85%  $-  255  $-  184  $-  158  $-  145  $-  145  $+   97  $+  110    3.0%    0.6%    0.0%
+    #4 NVDA/TSLA/META 3mo-M... done
+    4NVDA/TSLA/META    3mo-M  55% 90%  $-  318  $-  206  $-  142  $-  137  $-  126  $+  176  $+  192    4.8%    0.8%    0.1%
+    #5 NVDA/TSLA/AMZN 3mo-M... done
+    5NVDA/TSLA/AMZN    3mo-M  55% 85%  $-  361  $-  221  $-  198  $-  173  $-  163  $+  163  $+  198    5.5%    1.5%    0.4%
+    #6 NVDA/TSLA/AMZN 3mo-M... done
+    6NVDA/TSLA/AMZN    3mo-M  55% 90%  $-  300  $-  176  $-  167  $-  146  $-  140  $+  133  $+  161    4.4%    1.1%    0.4%
+    #7 NVDA/TSLA/META 3mo-M... done
+    7NVDA/TSLA/META    3mo-M  55% 90%  $-  303  $-  201  $-  152  $-  143  $-  160  $+  151  $+  144    4.5%    0.7%    0.6%
+    #8 NVDA/TSLA/AMZN 3mo-M... done
+    8NVDA/TSLA/AMZN    3mo-M  55% 85%  $-  315  $-  211  $-  188  $-  184  $-  164  $+  127  $+  151    4.3%    1.1%    0.3%
+    #9 NVDA/TSLA/META 3mo-M... done
+    9NVDA/TSLA/META    3mo-M  55% 85%  $-  359  $-  207  $-  188  $-  187  $-  168  $+  171  $+  191    5.5%    1.3%    0.4%
+    #10 NVDA/AMD/META 3mo-M... done
+   10NVDA/AMD/META     3mo-M  55% 85%  $-  316  $-  185  $-  193  $-  170  $-  163  $+  123  $+  153    4.2%    1.0%    0.1%
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  AVG                                  $-  309  $-  195  $-  170  $-  157  $-  150  $+  139  $+  159    4.4%    0.9%    0.3%
+
+  VRP DIRECTION: VRP HELPS with risky structures (KI 5-20%)
+  Lift at VRP=20%: $+  139/note | VRP=30%: $+  159/note
+  KI reduction: 4.4% → 0.3% at VRP=30%
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  PART 3 — SKEW PREMIUM (Euler=0, VRP=0)
+▓  Hedge with higher vol (OTM put skew): implied + skewAddon
+▓  Example: NVDA implied=55% + 15% skew → hedge at 70% vol
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+    #Basket            Mat     KI  CB    Sk+0%    Sk+5%   Sk+10%   Sk+15%   Sk+20%  D(+10%)  D(+20%)   Gamma@0  Gamma@20
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    #1 NVDA/AMD/META... done
+    1NVDA/AMD/META     3mo-M  55% 90%  $-  327  $-  307  $-  300  $-  265  $-  323  $+   27  $+    4   $-    1   $-    3
+    #2 NVDA/AMD/META... done
+    2NVDA/AMD/META     3mo-M  55% 90%  $-  287  $-  326  $-  295  $-  301  $-  317  $-    7  $-   30   $-   12   $-   15
+    #3 NVDA/TSLA/AMD... done
+    3NVDA/TSLA/AMD     3mo-M  50% 85%  $-  287  $-  290  $-  297  $-  277  $-  295  $-   10  $-    8   $-    2   $-   18
+    #4 NVDA/TSLA/META... done
+    4NVDA/TSLA/META    3mo-M  55% 90%  $-  283  $-  315  $-  318  $-  328  $-  322  $-   35  $-   38   $-   14   $-   11
+    #5 NVDA/TSLA/AMZN... done
+    5NVDA/TSLA/AMZN    3mo-M  55% 85%  $-  295  $-  304  $-  330  $-  352  $-  340  $-   34  $-   45   $-   18   $-   32
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  AVG                                  $-  296  $-  309  $-  308  $-  305  $-  319  $-   12  $-   23
+
+  SKEW DIRECTION: SKEW HURTS/NEUTRAL
+  Lift at +10%: $-   12 | +20%: $-   23
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  PART 4 — COMBINED VRP + SKEW (Euler=0)
+▓  Testing combinations on top 5 structures
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  Scenario                        AvgPnL  vs Base   KI%  AC%   SrAPY  ProtAPY  GammaPnL  Sign
+  ───────────────────────────────────────────────────────────────────────────────────────────────
+    Baseline (no edge)... done
+  Baseline (no edge)             $-  309  $+    0  4.6%  42%   +2.5%   -41.1%   $-    3     ✗
+    VRP=20%... done
+  VRP=20%                        $-  172  $+  137  1.1%  49%   +4.2%   -23.5%   $-    5     ✗
+    VRP=25%... done
+  VRP=25%                        $-  153  $+  156  0.6%  50%   +4.5%   -21.0%   $-    4     ✗
+    VRP=30%... done
+  VRP=30%                        $-  142  $+  167  0.2%  53%   +4.9%   -19.6%   $-    4     ✗
+    Skew=+10%... done
+  Skew=+10%                      $-  316  $-    7  4.6%  42%   +2.7%   -42.1%   $-    8     ✗
+    Skew=+15%... done
+  Skew=+15%                      $-  304  $+    6  4.1%  42%   +3.0%   -40.4%   $-   11     ✗
+    VRP=20% + Skew=+10%... done
+  VRP=20% + Skew=+10%            $-  168  $+  141  0.8%  49%   +4.4%   -22.9%   $-    9     ✗
+    VRP=25% + Skew=+10%... done
+  VRP=25% + Skew=+10%            $-  156  $+  153  0.5%  51%   +4.7%   -21.5%   $-    9     ✗
+    VRP=25% + Skew=+15%... done
+  VRP=25% + Skew=+15%            $-  153  $+  156  0.5%  51%   +4.6%   -21.1%   $-    7     ✗
+    VRP=30% + Skew=+15%... done
+  VRP=30% + Skew=+15%            $-  148  $+  161  0.3%  52%   +4.8%   -20.5%   $-    7     ✗
+    VRP=30% + Skew=+20%... done
+  VRP=30% + Skew=+20%            $-  152  $+  157  0.3%  53%   +4.9%   -21.1%   $-   11     ✗
+
+  BEST: VRP=30% → PnL = $-  142 → negative
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  PART 5 — ASYMMETRIC STRUCTURES: CB > AC (Euler=0, VRP=25%, Skew=+10%)
+▓  Coupon barrier HIGHER than autocall trigger → fewer coupons, more autocalls
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  Structure                        OptPnL   KI%  AC%   SrAPY SrWin  CpnDrain  KILoss  GammaPnL AvgDur  Sign
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    Standard: CB=75 AC=100... done
+  Standard: CB=75 AC=100          $-  947  8.4%  27%   +6.3%   92%   $-  513 $-  467   $-   23 0.68yr     ✗
+    Standard: CB=85 AC=105... done
+  Standard: CB=85 AC=105          $-  914  8.0%  22%   +5.8%   92%   $-  479 $-  452   $-   33 0.69yr     ✗
+    Asym: CB=85 AC=95... done
+  Asym: CB=85 AC=95               $-  885  7.6%  36%   +5.9%   93%   $-  456 $-  422   $-   49 0.66yr     ✗
+    Asym: CB=90 AC=100... done
+  Asym: CB=90 AC=100              $-  902  7.4%  30%   +6.1%   93%   $-  478 $-  411   $-   55 0.67yr     ✗
+    Asym: CB=90 AC=95... done
+  Asym: CB=90 AC=95               $-  890  7.6%  39%   +5.9%   93%   $-  453 $-  420   $-   58 0.65yr     ✗
+    Asym: CB=90 AC=90... done
+  Asym: CB=90 AC=90               $-  873  7.3%  45%   +6.3%   93%   $-  469 $-  406   $-   38 0.64yr     ✗
+    Extreme: CB=95 AC=100... done
+  Extreme: CB=95 AC=100           $- 1132 13.6%  30%   +5.2%   89%   $-  432 $-  692   $-   62 0.68yr     ✗
+    High KI: CB=85 AC=95 KI55... done
+  High KI: CB=85 AC=95 KI55       $- 1485 21.9%  38%   +5.7%   86%   $-  467 $- 1009   $-   74 0.66yr     ✗
+    High KI: CB=90 AC=95 KI55... done
+  High KI: CB=90 AC=95 KI55       $- 1513 21.6%  39%   +6.0%   85%   $-  480 $- 1000   $-   96 0.65yr     ✗
+    Short: CB=85 AC=95 6mo... done
+  Short: CB=85 AC=95 6mo          $-  491  4.5%  77%   +7.5%   96%   $-  231 $-  224   $-   30 0.28yr     ✗
+    Short: CB=90 AC=95 6mo... done
+  Short: CB=90 AC=95 6mo          $-  472  4.3%  77%   +7.6%   97%   $-  231 $-  216   $-   18 0.28yr     ✗
+    Ultra: CB=90 AC=95 3mo... done
+  Ultra: CB=90 AC=95 3mo          $-  242  0.3%  50%   +9.6%  100%   $-  201 $-   12   $-    4 0.21yr     ✗
+
+  BEST ASYMMETRIC: Ultra: CB=90 AC=95 3mo → PnL = $-  242 → negative
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  PART 6 — BREAKEVEN EULER (best configs from Parts 2-5)
+▓  VRP=25%, Skew=+10%
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  Config                                   E=0%     E=2%     E=4%     E=6%     E=8%    E=10%    E=12%   BEuler
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    Best risky #1: NVDA/AMD/META... done
+  Best risky #1: NVDA/AMD/META          $-  150  $-   30  $+   22  $+   59  $+  145  $+  186  $+  251     3.2%
+    Best risky #2: NVDA/AMD/META... done
+  Best risky #2: NVDA/AMD/META          $-  152  $-   40  $+   12  $+   77  $+  139  $+  192  $+  253     3.5%
+    Best risky #3: NVDA/TSLA/AMD... done
+  Best risky #3: NVDA/TSLA/AMD          $-  162  $-   42  $+   21  $+   67  $+  138  $+  186  $+  244     3.3%
+    Best asym: Ultra: CB=90 AC=95 3... done
+  Best asym: Ultra: CB=90 AC=95 3       $-  237  $-  137  $-   82  $-   27  $+   40  $+  102  $+  160     6.8%
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  PART 7 — DEEP DIVE: Best structure at Euler=0 (5000 paths)
+▓  VRP=25%, Skew=+10%, using best config from Part 4
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+  Config #1: NVDA/AMD/META 3mo-M KI:55% CB:90% AC:95%... done
+
+  ┌─────────────────────────────────────────────────────────────────────────────────┐
+  │  Config #1: NVDA/AMD/META 3mo-M KI:55% CB:90% AC:95% Cpn:8% ann (continuous KI)  │
+  ├─────────────────────────────────────────────────────────────────────────────────┤
+  │  Scenario              OptPnL     KI%    AC%   GammaPnL   CpnDrain    KILoss  │
+  │  No edge (baseline)    $-  286    4.2%    48%    $-    4    $-   76   $-  197  │
+  │  VRP=25% only          $-  140    0.4%    59%    $-    5    $-   91   $-   19  │
+  │  Skew=+10% only        $-  282    3.8%    48%    $-   14    $-   76   $-  174  │
+  │  VRP=25% + Skew=+10%   $-  145    0.4%    59%    $-    9    $-   91   $-   19  │
+  ├─────────────────────────────────────────────────────────────────────────────────┤
+  │  VRP lift:  $+  146    Skew lift: $+    4    Combined: $+  140             │
+  │  KI reduction: 4.2% → 0.4%    ✗ Still negative                  │
+  └─────────────────────────────────────────────────────────────────────────────────┘
+  Config #2: NVDA/AMD/META 3mo-M KI:55% CB:90% AC:100%... done
+
+  ┌─────────────────────────────────────────────────────────────────────────────────┐
+  │  Config #2: NVDA/AMD/META 3mo-M KI:55% CB:90% AC:100% Cpn:8% ann (continuous KI)  │
+  ├─────────────────────────────────────────────────────────────────────────────────┤
+  │  Scenario              OptPnL     KI%    AC%   GammaPnL   CpnDrain    KILoss  │
+  │  No edge (baseline)    $-  294    4.3%    36%    $-    7    $-   80   $-  198  │
+  │  VRP=25% only          $-  150    0.5%    42%    $-    4    $-   97   $-   23  │
+  │  Skew=+10% only        $-  307    4.2%    37%    $-   15    $-   82   $-  194  │
+  │  VRP=25% + Skew=+10%   $-  151    0.4%    42%    $-    9    $-   97   $-   18  │
+  ├─────────────────────────────────────────────────────────────────────────────────┤
+  │  VRP lift:  $+  144    Skew lift: $-   13    Combined: $+  143             │
+  │  KI reduction: 4.3% → 0.4%    ✗ Still negative                  │
+  └─────────────────────────────────────────────────────────────────────────────────┘
+  Config #3: NVDA/TSLA/AMD 3mo-M KI:50% CB:85% AC:95%... done
+
+  ┌─────────────────────────────────────────────────────────────────────────────────┐
+  │  Config #3: NVDA/TSLA/AMD 3mo-M KI:50% CB:85% AC:95% Cpn:8% ann (continuous KI)  │
+  ├─────────────────────────────────────────────────────────────────────────────────┤
+  │  Scenario              OptPnL     KI%    AC%   GammaPnL   CpnDrain    KILoss  │
+  │  No edge (baseline)    $-  288    3.9%    42%    $-    6    $-   89   $-  199  │
+  │  VRP=25% only          $-  151    0.4%    50%    $-    1    $-  106   $-   19  │
+  │  Skew=+10% only        $-  287    3.7%    41%    $-   10    $-   89   $-  187  │
+  │  VRP=25% + Skew=+10%   $-  162    0.4%    52%    $-    9    $-  107   $-   21  │
+  ├─────────────────────────────────────────────────────────────────────────────────┤
+  │  VRP lift:  $+  137    Skew lift: $+    1    Combined: $+  126             │
+  │  KI reduction: 3.9% → 0.4%    ✗ Still negative                  │
+  └─────────────────────────────────────────────────────────────────────────────────┘
+
+
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+█  PART 8 — FINAL ANSWER
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+
+  ┌──────────────────────────────────────────────────────────────────────────────────┐
+  │  Does a structured autocall configuration exist where pure option PnL ≥ $0?    │
+  └──────────────────────────────────────────────────────────────────────────────────┘
+
+  RISKY STRUCTURES (KI 5-20%, CB 75-90%, 3-9mo):
+    Best baseline (no edge):         $-  284
+    Best with VRP=30%:               $-  126
+    Best with VRP+Skew combined:     $-  142
+    Best asymmetric (CB>AC):         $-  242
+
+  ✗ NO — Even with risky structures, VRP=30%, skew=+20%, and asymmetric design,
+  no configuration achieves positive pure option PnL.
+
+  VRP IMPACT ON RISKY STRUCTURES:
+    v21 (safe, KI≈0%): VRP made things WORSE (more coupons, no KI to reduce)
+    v22 (risky, KI 5-20%): VRP HELPS (KI reduction > extra coupons)
+    Avg VRP lift at 30%: $+  159/note
+
+  SKEW IMPACT:
+    Hedge at OTM vol (+10-20%) vs ATM paths:
+    Avg skew lift at +20%: $-   23/note
+    Skew does NOT help — over-hedging costs more than it protects
+
+  THE FUNDAMENTAL ECONOMICS:
+    Coupons paid to Senior investors: dominant cost in ALL structures
+    KI losses: secondary cost, reducible via VRP
+    Gamma PnL from hedging: $-    1 (often negative for short put)
+    Net: coupon drain consistently exceeds hedge income + KI savings
+
+  CONCLUSION:
+    The autocall structure's economics are fundamentally:
+    INCOME: gamma PnL from hedge + VRP savings + skew premium
+    COSTS:  coupon payments + KI losses
+
+    In ALL configurations tested, costs exceed income.
+The autocall structure is a PRODUCT WRAPPER, not a profit center.
+
+    The protocol's economic engine:
+    → ~0% from structured product edge (negative pure option PnL)
+    → 70-80% from Euler carry
+    → 20-30% from fees
+
+    Breakeven Euler with all institutional edges: ~4-5%
+    DeFi Euler yields available: 10-15%
+    → The product IS viable. The question is attribution.
+
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+█  xYield v22 COMPLETE — Risky structures explored
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+

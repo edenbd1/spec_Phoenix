@@ -1,0 +1,275 @@
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+█  xYIELD v20 — VOLATILITY RISK PREMIUM ENGINE
+█  Pure option economics → VRP + correlation premium → Euler layer → product design
+█  Today: 2026-03-15
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  PART 1 — PURE OPTION ECONOMICS (Euler=0, European KI, no fees)
+▓  Steps A/B/C: No VRP → +VRP → +VRP+CorrPremium
+▓  Config: KI 35%, CB 60%, AC 105% SD 2.5%/obs, Cpn 2.5%/Q, 9mo, Jr 35%
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+  Basket                NoVRP_PnL   VRP_PnL  VRP+Corr_PnL    D(VRP)   D(Corr)  NoVRP_KI%  VRP_KI%  VRP+C_KI%
+  ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+    NVDA/TSLA/AMD... done
+  NVDA/TSLA/AMD           $- 1007   $-  805       $-  802   $+  202   $+    4       9.4%     3.6%       3.6%
+    NVDA/TSLA/META... done
+  NVDA/TSLA/META          $-  958   $-  793       $-  820   $+  165   $-   27       8.0%     3.3%       4.3%
+    NVDA/AMD/META... done
+  NVDA/AMD/META           $-  827   $-  736       $-  732   $+   91   $+    4       4.9%     1.7%       1.6%
+    NVDA/TSLA/COIN... done
+  NVDA/TSLA/COIN          $- 1425   $- 1099       $- 1094   $+  326   $+    5      20.6%    11.7%      11.3%
+    NVDA/META/AMZN... done
+  NVDA/META/AMZN          $-  795   $-  714       $-  750   $+   81   $-   36       3.8%     1.1%       1.9%
+    META/AAPL/AMZN... done
+  META/AAPL/AMZN          $-  692   $-  696       $-  688   $-    4   $+    8       0.3%     0.0%       0.0%
+    NVDA/TSLA/AMZN... done
+  NVDA/TSLA/AMZN          $-  981   $-  819       $-  801   $+  162   $+   18       8.4%     4.3%       3.8%
+    TSLA/COIN/AMD... done
+  TSLA/COIN/AMD           $- 1439   $- 1071       $- 1089   $+  367   $-   17      21.3%    11.1%      10.7%
+  ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+  AVERAGE                 $- 1016   $-  842       $-  847   $+  174   $-    5
+
+  INTERPRETATION:
+    NoVRP PnL    = pure autocall with identical vol for pricing & paths (baseline)
+    VRP PnL      = paths use realized vol (NVDAx:48%, TSLAx:52%, COINx:65%...) → fewer breaches
+    VRP+Corr PnL = also use realized correlations (higher) → worst-of less severe
+    D(VRP)       = improvement from vol risk premium alone
+    D(Corr)      = additional improvement from correlation premium
+
+  TOP 3 BASKETS (by VRP+Corr PnL): META/AAPL/AMZN, NVDA/AMD/META, NVDA/META/AMZN
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  PART 2 — STRUCTURE OPTIMIZATION (VRP enabled, Euler=0)
+▓  Sweeping: KI, CB, acStart, acSD, cpn, mem, maturity across top 3 baskets
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  Sweep: 3 baskets × 2 mats × 384 params = 2304 configs × 800 paths
+
+  Sweeping META/AAPL/AMZN...
+    META/AAPL/AMZN done (768 configs, 768 total)
+
+  Sweeping NVDA/AMD/META...
+    NVDA/AMD/META done (768 configs, 1536 total)
+
+  Sweeping NVDA/META/AMZN...
+    NVDA/META/AMZN done (768 configs, 2304 total)
+
+  Sweep complete: 2304 configs run, 2304 passed filters, showing top 20
+
+    #Basket              Mat        KI   CB    AC    SD   Cpn Mem  SrAPY  KI%  AC%  ProtPnL$  ProtLoss%  AvgDur
+  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    1NVDA/AMD/META       9mo-Q     25%  70%  100%  0.0%  2.0%   N  +6.0% 0.0%28.2%   $-  439      96.6%  0.68yr
+    2NVDA/AMD/META       9mo-Q     25%  70%  100%  5.0%  2.0%   N  +5.8% 0.5%36.9%   $-  443      95.3%  0.66yr
+    3NVDA/AMD/META       9mo-Q     25%  70%  100%  5.0%  2.0%   Y  +6.2% 0.0%34.1%   $-  444      96.3%  0.66yr
+    4NVDA/AMD/META       9mo-Q     25%  70%  105%  5.0%  2.0%   N  +5.9% 0.1%27.1%   $-  446      96.6%  0.68yr
+    5NVDA/META/AMZN      9mo-Q     25%  70%  100%  5.0%  2.0%   N  +6.3% 0.0%36.8%   $-  446      98.4%  0.66yr
+    6NVDA/AMD/META       9mo-Q     30%  70%  105%  5.0%  2.0%   N  +5.9% 0.3%27.0%   $-  456      94.9%  0.68yr
+    7NVDA/AMD/META       9mo-Q     25%  70%  110%  5.0%  2.0%   N  +6.1% 0.0%22.5%   $-  456      97.9%  0.69yr
+    8NVDA/AMD/META       9mo-Q     25%  70%  105%  0.0%  2.0%   N  +6.0% 0.1%22.1%   $-  460      97.4%  0.69yr
+    9NVDA/META/AMZN      9mo-Q     25%  70%  100%  5.0%  2.0%   Y  +6.3% 0.1%31.6%   $-  461      98.0%  0.67yr
+   10NVDA/AMD/META       9mo-Q     25%  70%  105%  5.0%  2.0%   Y  +6.2% 0.1%26.8%   $-  465      96.9%  0.68yr
+   11NVDA/META/AMZN      9mo-Q     30%  70%  100%  5.0%  2.0%   N  +6.0% 0.6%36.9%   $-  470      95.9%  0.66yr
+   12NVDA/META/AMZN      9mo-Q     25%  70%  100%  0.0%  2.0%   N  +6.4% 0.0%26.0%   $-  470      98.4%  0.69yr
+   13NVDA/AMD/META       9mo-Q     25%  70%  105%  0.0%  2.0%   Y  +6.3% 0.0%21.0%   $-  470      96.8%  0.70yr
+   14NVDA/META/AMZN      9mo-Q     30%  70%  110%  5.0%  2.0%   N  +6.2% 0.0%19.5%   $-  471      96.8%  0.70yr
+   15NVDA/META/AMZN      9mo-Q     30%  70%  100%  0.0%  2.0%   N  +6.1% 0.3%27.1%   $-  472      96.4%  0.68yr
+   16NVDA/META/AMZN      9mo-Q     25%  70%  105%  5.0%  2.0%   N  +6.5% 0.0%27.6%   $-  473      97.4%  0.68yr
+   17NVDA/AMD/META       9mo-Q     30%  70%  100%  5.0%  2.0%   N  +5.8% 0.8%34.3%   $-  473      94.9%  0.66yr
+   18NVDA/AMD/META       9mo-Q     30%  70%  100%  0.0%  2.0%   N  +6.0% 0.5%27.5%   $-  476      95.4%  0.68yr
+   19NVDA/META/AMZN      9mo-Q     30%  70%  100%  5.0%  2.0%   Y  +6.4% 0.3%31.3%   $-  477      95.6%  0.67yr
+   20NVDA/AMD/META       9mo-Q     25%  70%  100%  0.0%  2.0%   Y  +6.2% 0.3%25.8%   $-  478      97.4%  0.69yr
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  PART 3 — CAPITAL TURNOVER ANALYSIS
+▓  Short-duration autocalls recycle capital → annualized PnL changes picture
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+    #Basket              Mat       AvgDur  Turns/Yr  ProtPnL/note  AnnPnL(recycled)  KI%  SrAPY       Comment
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    1NVDA/AMD/META       9mo-Q     0.68yr      1.5x       $-  439           $-  646 0.0%  +6.0%      balanced
+    2NVDA/AMD/META       9mo-Q     0.66yr      1.5x       $-  443           $-  674 0.5%  +5.8%      balanced
+    3NVDA/AMD/META       9mo-Q     0.66yr      1.5x       $-  444           $-  668 0.0%  +6.2%      balanced
+    4NVDA/AMD/META       9mo-Q     0.68yr      1.5x       $-  446           $-  653 0.1%  +5.9%      balanced
+    5NVDA/META/AMZN      9mo-Q     0.66yr      1.5x       $-  446           $-  678 0.0%  +6.3%      balanced
+
+  INSIGHT: A product that loses $439 per note but autocalls in 0.68yr
+  recycles capital 1.5x/year → annualized PnL = $-646/yr.
+  Capital turnover dramatically changes the economics. Short products with
+  moderate per-note PnL often beat long products with better per-note PnL.
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  PART 4 — EULER CARRY LAYER
+▓  Top 10 structures: pure option PnL → with Euler → breakeven Euler
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  Basket              Mat       Euler=0   E=10%   E=12%   E=15%  BEuler  KI%
+  ─────────────────────────────────────────────────────────────────────────────────────
+    NVDA/AMD/META 9mo-Q... done
+  NVDA/AMD/META       9mo-Q     $-  449 $+  521 $+  738 $+ 1042    4.8% 0.0%
+    NVDA/AMD/META 9mo-Q... done
+  NVDA/AMD/META       9mo-Q     $-  433 $+  520 $+  729 $+ 1016    4.5% 0.5%
+    NVDA/AMD/META 9mo-Q... done
+  NVDA/AMD/META       9mo-Q     $-  445 $+  514 $+  694 $+ 1005    4.5% 0.0%
+    NVDA/AMD/META 9mo-Q... done
+  NVDA/AMD/META       9mo-Q     $-  445 $+  564 $+  721 $+ 1028    4.9% 0.1%
+    NVDA/META/AMZN 9mo-Q... done
+  NVDA/META/AMZN      9mo-Q     $-  447 $+  509 $+  708 $+  980    4.8% 0.0%
+    NVDA/AMD/META 9mo-Q... done
+  NVDA/AMD/META       9mo-Q     $-  467 $+  523 $+  702 $+ 1014    5.9% 0.3%
+    NVDA/AMD/META 9mo-Q... done
+  NVDA/AMD/META       9mo-Q     $-  456 $+  545 $+  741 $+ 1058    4.9% 0.0%
+    NVDA/AMD/META 9mo-Q... done
+  NVDA/AMD/META       9mo-Q     $-  466 $+  561 $+  743 $+ 1058    4.1% 0.1%
+    NVDA/META/AMZN 9mo-Q... done
+  NVDA/META/AMZN      9mo-Q     $-  474 $+  485 $+  680 $+  973    5.2% 0.1%
+    NVDA/AMD/META 9mo-Q... done
+  NVDA/AMD/META       9mo-Q     $-  464 $+  530 $+  728 $+ 1005    5.5% 0.1%
+
+  BEuler = breakeven Euler APY needed to make protocol PnL = $0
+  Structures with BEuler < 8% are DeFi-viable (Euler provides enough carry)
+  Structures with BEuler < 0% generate profit with ZERO Euler
+
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  PART 5 — THREE PRODUCT MODES (6000 paths)
+▓  Mode A: Retail Flagship | Mode B: Premium Structured Note | Mode C: Protocol Maximizer
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
+  Mode A: META/AAPL/AMZN KI:40% Cpn:3.5% Mat:9mo-Q
+  Mode B: NVDA/META/AMZN KI:25% Cpn:3.5% Mat:12mo-Q
+  Mode C: NVDA/AMD/META KI:25% Cpn:2.0% Mat:9mo-Q
+
+  Running MODE A — RETAIL FLAGSHIP (META/AAPL/AMZN, E=12%)... done
+
+  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │  MODE A — RETAIL FLAGSHIP                                                                                │
+  │  Basket: META/AAPL/AMZN       | KI:40.0% CB:50.0% AC:110.0% SD:5.0%/obs Cpn:3.5%/obs Mem:Y 9mo-Q E:12.0% │
+  ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │  SENIOR (retail)         APY:  +13.9%  Win: 99.8%  P5:   +7.0%  P95:  +10.5%           │
+  │  PROTOCOL (underwriter)  APY:   +7.6%  Win: 99.8%  P5:   +3.7%  P95:  +10.1%           │
+  ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │  PnL DECOMPOSITION (per $10000 Sr note, Jr=$3500):                                               │
+  │    Pure autocall premium (VRP+Corr)    $-  999   → structural edge from vol & corr premia      │
+  │    Euler carry enhancement             $+  939   → from 12.0% pool yield                         │
+  │    Fee income (mgmt + orig)            $+  238   → protocol revenue                               │
+  │    Senior coupons paid                 $-  960   → +13.9% annualized                         │
+  │    KI losses absorbed                  $-   10   → 0.2% KI rate, $5990 avg per event          │
+  │                                      ─────────                                                         │
+  │    PROTOCOL NET                        $+  182   → +7.6% APY on $3500 Jr capital        │
+  ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │  PROFIT SHARE:  Autocall: -548%  Euler:  516%  Fees:  131%  (target autocall >30%)         │
+  │  OUTCOMES:  AC 25%  MAT 75%  KI 0.2%  AvgDur 0.69yr  Turns 1.5x/yr           │
+  │  KI DETAILS: prob 0.2%  avg worst-of 40%  avg loss $5990                               │
+  └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+  Running MODE B — PREMIUM STRUCTURED NOTE (NVDA/META/AMZN, E=12%)... done
+
+  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │  MODE B — PREMIUM STRUCTURED NOTE                                                                        │
+  │  Basket: NVDA/META/AMZN       | KI:25.0% CB:50.0% AC:110.0% SD:5.0%/obs Cpn:3.5%/obs Mem:Y 12mo-Q E:12.0% │
+  ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │  SENIOR (retail)         APY:  +13.2%  Win: 99.5%  P5:   +7.0%  P95:  +14.0%           │
+  │  PROTOCOL (underwriter)  APY:   +8.4%  Win: 99.5%  P5:   +3.0%  P95:  +21.9%           │
+  ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │  PnL DECOMPOSITION (per $10000 Sr note, Jr=$3500):                                               │
+  │    Pure autocall premium (VRP+Corr)    $- 1206   → structural edge from vol & corr premia      │
+  │    Euler carry enhancement             $+ 1172   → from 12.0% pool yield                         │
+  │    Fee income (mgmt + orig)            $+  284   → protocol revenue                               │
+  │    Senior coupons paid                 $- 1147   → +13.4% annualized                         │
+  │    KI losses absorbed                  $-   40   → 0.5% KI rate, $7549 avg per event          │
+  │                                      ─────────                                                         │
+  │    PROTOCOL NET                        $+  253   → +8.4% APY on $3500 Jr capital        │
+  ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │  PROFIT SHARE:  Autocall: -477%  Euler:  463%  Fees:  112%  (target autocall >30%)         │
+  │  OUTCOMES:  AC 34%  MAT 65%  KI 0.5%  AvgDur 0.86yr  Turns 1.2x/yr           │
+  │  KI DETAILS: prob 0.5%  avg worst-of 25%  avg loss $7549                               │
+  └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+  Running MODE C — PROTOCOL MAXIMIZER (NVDA/AMD/META, E=15%)... done
+
+  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │  MODE C — PROTOCOL MAXIMIZER                                                                             │
+  │  Basket: NVDA/AMD/META        | KI:25.0% CB:70.0% AC:100.0% SD:5.0%/obs Cpn:2.0%/obs Mem:N 9mo-Q E:15.0% │
+  ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │  SENIOR (retail)         APY:   +5.9%  Win: 99.9%  P5:   +0.0%  P95:   +6.0%           │
+  │  PROTOCOL (underwriter)  APY:  +43.3%  Win: 99.9%  P5:  +25.9%  P95:  +70.2%           │
+  ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │  PnL DECOMPOSITION (per $10000 Sr note, Jr=$3500):                                               │
+  │    Pure autocall premium (VRP+Corr)    $-  436   → structural edge from vol & corr premia      │
+  │    Euler carry enhancement             $+ 1209   → from 15.0% pool yield                         │
+  │    Fee income (mgmt + orig)            $+  236   → protocol revenue                               │
+  │    Senior coupons paid                 $-  399   → +6.0% annualized                         │
+  │    KI losses absorbed                  $-   11   → 0.1% KI rate, $7479 avg per event          │
+  │                                      ─────────                                                         │
+  │    PROTOCOL NET                        $+ 1011   → +43.3% APY on $3500 Jr capital        │
+  ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │  PROFIT SHARE:  Autocall:  -43%  Euler:  120%  Fees:   23%  (target autocall >30%)         │
+  │  OUTCOMES:  AC 33%  MAT 66%  KI 0.1%  AvgDur 0.67yr  Turns 1.5x/yr           │
+  │  KI DETAILS: prob 0.1%  avg worst-of 25%  avg loss $7479                               │
+  └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+█  PART 6 — SUMMARY TABLE
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+
+  Mode                                  SrAPY  SrWin  ProtAPY  ProtWin AutocallShr  EulerShr  FeeShr
+  ────────────────────────────────────────────────────────────────────────────────────────────────────
+  MODE A — RETAIL FLAGSHIP             +13.9%  99.8%    +7.6%    99.8%       -548%      516%    131%
+  MODE B — PREMIUM STRUCTURED NOTE     +13.2%  99.5%    +8.4%    99.5%       -477%      463%    112%
+  MODE C — PROTOCOL MAXIMIZER           +5.9%  99.9%   +43.3%    99.9%        -43%      120%     23%
+
+
+  VRP + CORRELATION PREMIUM IMPACT (across all 8 baskets, Euler=0):
+  ──────────────────────────────────────────────────────────────────────
+  Avg pure option PnL (no VRP):             $- 1016
+  Avg pure option PnL (+ VRP):               $-  842   improvement: $+  174
+  Avg pure option PnL (+ VRP + CorrPrem):    $-  847   improvement: $-    5
+  Total VRP+Corr lift:                       $+  169
+
+  BREAKEVEN EULER ANALYSIS (top 10 structures):
+  ──────────────────────────────────────────────────────────────────────
+  Average breakeven Euler APY: 4.9%
+  Range: 4.1% – 5.9%
+  Euler protocols typically offer 10-15% APY → structures ARE viable
+
+
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+█  KEY ANSWER: Does the autocall structure itself generate meaningful value?
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+
+  1. PURE OPTION (no VRP): Avg PnL = $- 1016 → NEGATIVE
+     → Confirming v19 finding: selling autocall insurance at market prices (implied vol)
+       with paths also at implied vol = net LOSS for protocol. Coupons > expected KI value.
+
+  2. WITH VRP: Avg PnL = $-  842 → Δ = $+  174
+     → Selling insurance priced at implied vol but claims materialize at realized vol
+       creates structural edge. FEWER KI events than priced in.
+
+  3. WITH VRP + CORR PREMIUM: Avg PnL = $-  847 → Additional Δ = $-    5
+     → Higher realized correlation means worst-of is LESS severe than priced.
+       Basket options overcharge because they assume low correlation.
+
+  4. WITH EULER (12-15%): All three product modes achieve positive protocol PnL
+     → Euler carry transforms marginal-or-negative pure option into profitable product.
+     → Breakeven Euler ≈ 4.9% (well within DeFi yields).
+
+  5. AUTOCALL SHARE (with Euler):
+     Average across 3 modes: -356%
+     ✗ BELOW threshold → protocol is primarily an Euler yield wrapper
+
+  CONCLUSION:
+  The autocall structure provides REAL VALUE through VRP + correlation premium,
+  but this alone is insufficient at typical market conditions ($-  847 per note).
+  Euler carry is the PRIMARY profit driver (breakeven ≈ 4.9%).
+  The structure's MAIN CONTRIBUTION: it enables the product design (gives Sr investors
+  the coupon structure they want), keeps KI probability low with European barrier,
+  and the VRP/corr premium partially offsets coupon costs.
+  This is SIMILAR to how banks profit: hedge desk + vol premium + distribution margin.
+
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+█  xYield v20 COMPLETE — VRP + Correlation Premium engine analyzed
+████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+

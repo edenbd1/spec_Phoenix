@@ -536,25 +536,31 @@ console.log(`${G}  PART 2 — STRUCTURE OPTIMIZATION (VRP enabled, Euler=0)`);
 console.log(`${G}  Sweeping: KI, CB, acStart, acSD, cpn, mem, maturity across top 3 baskets`);
 console.log(G.repeat(120));
 
-const N2=1500;
+const N2=800; // sweep uses 800 paths for speed; deep dives use 6000
 
-const KI_sweep  = [0.25, 0.30, 0.35, 0.40];
-const CB_sweep  = [0.50, 0.60, 0.70];
-const AC_sweep  = [1.00, 1.05, 1.10];
-const SD_sweep  = [0.0,  0.025, 0.05];
-const CPN_sweep = [0.020, 0.025, 0.030, 0.035];
-const MEM_sweep = [true, false];
+// Sweep dimensions: 4×2×3×2×4×2×2 = 768 params × 3 baskets = 2304 configs
+const KI_sweep  = [0.25, 0.30, 0.35, 0.40];  // 4 — most important
+const CB_sweep  = [0.50, 0.70];               // 2 — aggressive vs conservative
+const AC_sweep  = [1.00, 1.05, 1.10];         // 3 — entry level
+const SD_sweep  = [0.0,  0.05];               // 2 — flat vs aggressive step-down
+const CPN_sweep = [0.020, 0.025, 0.030, 0.035]; // 4 — coupon level
+const MEM_sweep = [true, false];              // 2
+// Quarterly only for sweep (monthly covered in deep dives)
 const MAT_sweep = [
-  {nObs:3, obsFreq:0.25, label:'9mo-Q'},
-  {nObs:4, obsFreq:0.25, label:'12mo-Q'},
-  {nObs:12,obsFreq:1/12,label:'12mo-M'},
+  {nObs:3, obsFreq:0.25,  label:'9mo-Q',  nP:N2, spd:1},
+  {nObs:4, obsFreq:0.25,  label:'12mo-Q', nP:N2, spd:1},
 ];
 
 let allSweepResults=[];
 let sweepCount=0;
 
+const paramsPerMat=KI_sweep.length*CB_sweep.length*AC_sweep.length*SD_sweep.length*CPN_sweep.length*MEM_sweep.length;
+const totalExpected=top3Baskets.length*MAT_sweep.length*paramsPerMat;
+process.stdout.write(`\n  Sweep: ${top3Baskets.length} baskets × ${MAT_sweep.length} mats × ${paramsPerMat} params = ${totalExpected} configs × ${N2} paths\n`);
+
 for(const bkt of top3Baskets){
   process.stdout.write(`\n  Sweeping ${bkt.name}...\n`);
+  let bktCount=0;
   for(const mat of MAT_sweep){
     for(const ki of KI_sweep){
       for(const cb of CB_sweep){
@@ -567,10 +573,11 @@ for(const bkt of top3Baskets){
                   ki, cb, acStart, acSD, cpnPerPeriod:cpn,
                   mem, useVRP:true,
                   nObs:mat.nObs, obsFreq:mat.obsFreq,
+                  stepsPerDay:mat.spd,
                 };
-                const R=runMC(bkt.stocks, cfg, N2);
+                const R=runMC(bkt.stocks, cfg, mat.nP);
                 const s=stats(R, cfg);
-                sweepCount++;
+                sweepCount++; bktCount++;
                 allSweepResults.push({
                   basket:bkt.name, stocks:bkt.stocks, matLabel:mat.label,
                   ki, cb, acStart, acSD, cpn, mem,
@@ -581,16 +588,17 @@ for(const bkt of top3Baskets){
             }
           }
         }
+        if(bktCount%200===0) process.stdout.write(`    ...${bktCount} done\n`);
       }
     }
   }
-  process.stdout.write(`    done (${sweepCount} total configs so far)\n`);
+  process.stdout.write(`    ${bkt.name} done (${bktCount} configs, ${sweepCount} total)\n`);
 }
 
-// Filter and rank
+// Filter: with Euler=0 Jr always loses (funds Sr coupons), so filter on KI rate + Sr yield
 const validSweep=allSweepResults.filter(r=>
-  r.sAnn>0 &&          // Sr gets positive return
-  r.protLossPct<0.20   // protocol loss in <20% of paths
+  r.sAnn>0 &&            // Sr gets positive annualized return
+  r.kiR<0.15             // KI rate < 15%
 );
 
 const top20=validSweep.sort((a,b)=>b.avgProtPnL-a.avgProtPnL).slice(0,20);
@@ -689,7 +697,7 @@ console.log(`${G}  PART 4 — EULER CARRY LAYER`);
 console.log(`${G}  Top 10 structures: pure option PnL → with Euler → breakeven Euler`);
 console.log(G.repeat(120));
 
-const N4=1500;
+const N4=1200;
 const top10Sweep=top20.slice(0,10);
 const EULER_LEVELS=[0, 0.10, 0.12, 0.15];
 
@@ -706,8 +714,9 @@ console.log('  '+D.repeat(85));
 
 const part4Full=[];
 for(const r of top10Sweep){
+  process.stdout.write(`    ${r.basket} ${r.matLabel}...`);
   const rowPnLs=[];
-  let basePnL=null, marginalPer1pct=null;
+  let basePnL=null;
 
   for(const euler of EULER_LEVELS){
     const cfg={
@@ -721,17 +730,17 @@ for(const r of top10Sweep){
     const s=stats(R, cfg);
     rowPnLs.push(s.avgProtPnL);
     if(euler===0) basePnL=s.avgProtPnL;
-    if(euler===0.01) marginalPer1pct=s.avgProtPnL-basePnL;
   }
 
   // Run at Euler=1% to get marginal for breakeven calc
   const cfgMarg={...r.cfg, eulerAPY:0.01, fundingAPY:0.05, protocolSpread:0.01};
   const Rmarg=runMC(r.stocks, cfgMarg, N4);
   const sMarg=stats(Rmarg, cfgMarg);
-  const marginal=sMarg.avgProtPnL-basePnL;
-  const breakEven=marginal>0&&basePnL<0?(-basePnL/marginal*0.01):null;
+  const marginal=sMarg.avgProtPnL-(basePnL||0);
+  const breakEven=marginal>0&&basePnL!=null&&basePnL<0?(-basePnL/marginal*0.01):null;
 
   part4Full.push({...r, rowPnLs, basePnL, breakEven});
+  process.stdout.write(` done\n`);
 
   const beStr=breakEven!=null?`${(breakEven*100).toFixed(1)}%`:'<0%';
   console.log('  '+
@@ -762,14 +771,27 @@ console.log(G.repeat(120));
 const N5=6000;
 
 // Select best basket/config for each mode from the sweep
-// Mode A: best Sr APY > 10%, Sr Win > 95%, lowest KI
-const modeACand=validSweep.filter(r=>r.sAnn>0.08&&r.sWin>0.90).sort((a,b)=>b.sAnn-a.sAnn);
-const modeBCand=validSweep.filter(r=>r.mem&&r.cpn>=0.03).sort((a,b)=>b.avgProtPnL-a.avgProtPnL);
-const modeCCand=validSweep.sort((a,b)=>b.avgProtPnL-a.avgProtPnL);
+// Mode A: highest Sr APY with very low KI (retail safety)
+const modeACand=validSweep.filter(r=>r.kiR<0.03&&r.sAnn>0.05).sort((a,b)=>b.sAnn-a.sAnn);
+const modeA_base=modeACand[0]||null;
 
-const modeA_base=modeACand[0]||top5Sweep[0];
-const modeB_base=modeBCand[0]||top5Sweep[1]||top5Sweep[0];
-const modeC_base=modeCCand[0]||top5Sweep[0];
+// Mode B: memory coupon ON + 12mo maturity + different basket from Mode A
+const modeA_basket=modeA_base?.basket||'META/AAPL/AMZN';
+const modeBCand=validSweep
+  .filter(r=>r.mem&&r.nObs===4&&r.basket!==modeA_basket&&r.kiR<0.10&&r.sAnn>0.05)
+  .sort((a,b)=>b.sAnn-a.sAnn);
+const modeB_base=modeBCand[0]||validSweep.filter(r=>r.mem&&r.nObs===4).sort((a,b)=>b.sAnn-a.sAnn)[0]||null;
+
+// Mode C: maximize protocol PnL with VRP (different basket from A and B)
+const modeB_basket=modeB_base?.basket||'NVDA/META/AMZN';
+const modeCCand=[...validSweep]
+  .filter(r=>r.basket!==modeA_basket&&r.basket!==modeB_basket)
+  .sort((a,b)=>b.avgProtPnL-a.avgProtPnL);
+const modeC_base=modeCCand[0]||[...validSweep].sort((a,b)=>b.avgProtPnL-a.avgProtPnL)[0]||null;
+
+process.stdout.write(`\n  Mode A: ${modeA_base?.basket||'fallback'} KI:${((modeA_base?.ki||0.25)*100).toFixed(0)}% Cpn:${((modeA_base?.cpn||0.025)*100).toFixed(1)}% Mat:${modeA_base?.matLabel||'9mo-Q'}\n`);
+process.stdout.write(`  Mode B: ${modeB_base?.basket||'fallback'} KI:${((modeB_base?.ki||0.30)*100).toFixed(0)}% Cpn:${((modeB_base?.cpn||0.025)*100).toFixed(1)}% Mat:${modeB_base?.matLabel||'12mo-Q'}\n`);
+process.stdout.write(`  Mode C: ${modeC_base?.basket||'fallback'} KI:${((modeC_base?.ki||0.35)*100).toFixed(0)}% Cpn:${((modeC_base?.cpn||0.020)*100).toFixed(1)}% Mat:${modeC_base?.matLabel||'9mo-Q'}\n\n`);
 
 // Deep dive function
 function deepDive(label, bkt_stocks, bkt_name, cfg6k, euler) {
@@ -837,13 +859,14 @@ function deepDive(label, bkt_stocks, bkt_name, cfg6k, euler) {
   };
 }
 
-// Mode A — Retail Flagship (Sr APY 10-14%, Sr Win > 95%, VRP, Euler 12%)
+// Mode A — Retail Flagship: low KI (< 3%), high Sr win, 9mo quarterly
+// Fallback: META/AAPL/AMZN — lowest vol basket, near-zero KI
 const modeACfg={
   ...BASE,
-  ki: modeA_base?.ki||0.30,
+  ki: modeA_base?.ki||0.25,
   cb: modeA_base?.cb||0.50,
-  acStart: modeA_base?.acStart||1.00,
-  acSD: modeA_base?.acSD||0.025,
+  acStart: modeA_base?.acStart||1.10,
+  acSD: modeA_base?.acSD||0.05,
   cpnPerPeriod: modeA_base?.cpn||0.025,
   mem: true,
   nObs: modeA_base?.nObs||3,
@@ -851,42 +874,44 @@ const modeACfg={
   useVRP: true,
   matLabel: modeA_base?.matLabel||'9mo-Q',
 };
-const modeAStocks=modeA_base?.stocks||['NVDAx','AMDx','METAx'];
-const modeAName=modeA_base?.basket||'NVDA/AMD/META';
+const modeAStocks=modeA_base?.stocks||['METAx','AAPLx','AMZNx'];
+const modeAName=modeA_base?.basket||'META/AAPL/AMZN';
 
-// Mode B — Premium Structured Note (memory, aggressive step-down)
+// Mode B — Premium Structured Note: memory ON, 12mo quarterly, mid-range basket
+// Fallback: NVDA/META/AMZN (different from A)
 const modeBCfg={
   ...BASE,
-  ki: modeB_base?.ki||0.35,
+  ki: modeB_base?.ki||0.30,
   cb: modeB_base?.cb||0.60,
   acStart: modeB_base?.acStart||1.05,
   acSD: modeB_base?.acSD||0.05,
-  cpnPerPeriod: modeB_base?.cpn||0.035,
+  cpnPerPeriod: modeB_base?.cpn||0.025,
   mem: true,
   nObs: modeB_base?.nObs||4,
   obsFreq: modeB_base?.obsFreq||0.25,
   useVRP: true,
   matLabel: modeB_base?.matLabel||'12mo-Q',
 };
-const modeBStocks=modeB_base?.stocks||['NVDAx','TSLAx','COINx'];
-const modeBName=modeB_base?.basket||'NVDA/TSLA/COIN';
+const modeBStocks=modeB_base?.stocks||['NVDAx','METAx','AMZNx'];
+const modeBName=modeB_base?.basket||'NVDA/META/AMZN';
 
-// Mode C — Protocol Maximizer
+// Mode C — Protocol Maximizer: lowest per-note loss (least negative PnL at Euler=0)
+// Maximize Euler APY contribution. Fallback: NVDA/AMD/META
 const modeCCfg={
   ...BASE,
-  ki: modeC_base?.ki||0.35,
-  cb: modeC_base?.cb||0.60,
-  acStart: modeC_base?.acStart||1.05,
-  acSD: modeC_base?.acSD||0.025,
-  cpnPerPeriod: modeC_base?.cpn||0.030,
-  mem: modeC_base?.mem!=null?modeC_base.mem:true,
+  ki: modeC_base?.ki||0.25,
+  cb: modeC_base?.cb||0.70,
+  acStart: modeC_base?.acStart||1.00,
+  acSD: modeC_base?.acSD||0.05,
+  cpnPerPeriod: modeC_base?.cpn||0.020,
+  mem: modeC_base?.mem!=null?modeC_base.mem:false,
   nObs: modeC_base?.nObs||3,
   obsFreq: modeC_base?.obsFreq||0.25,
   useVRP: true,
   matLabel: modeC_base?.matLabel||'9mo-Q',
 };
-const modeCStocks=modeC_base?.stocks||['TSLAx','COINx','AMDx'];
-const modeCName=modeC_base?.basket||'TSLA/COIN/AMD';
+const modeCStocks=modeC_base?.stocks||['NVDAx','AMDx','METAx'];
+const modeCName=modeC_base?.basket||'NVDA/AMD/META';
 
 const ddA=deepDive('MODE A — RETAIL FLAGSHIP', modeAStocks, modeAName, modeACfg, 0.12);
 const ddB=deepDive('MODE B — PREMIUM STRUCTURED NOTE', modeBStocks, modeBName, modeBCfg, 0.12);
