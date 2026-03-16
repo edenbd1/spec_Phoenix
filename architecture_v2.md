@@ -173,7 +173,344 @@ Ces fees sont GARANTIS. Pas de risque directionnel.
 
 ---
 
-## 4. Revenue model v2 — par note $10,000 / 6 mois
+## 4. Pricing Engine — Monte Carlo + Formule Coupon
+
+### La formule fondamentale
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│  COUPON = OPTION PREMIUM − SAFETY MARGIN + CARRY ENHANCE   │
+│                                                             │
+│  Où :                                                       │
+│  • Option premium = fair value du worst-of put (Monte Carlo)│
+│  • Safety margin = 1-2% (protocole edge sur l'option layer) │
+│  • Carry enhancement = 0-30% du funding rate (variable)     │
+│                                                             │
+│  CONTRAINTE ABSOLUE :                                       │
+│                                                             │
+│  coupon_base ≤ option_premium − safety_margin               │
+│                                                             │
+│  JAMAIS de coupon supérieur à ce que l'option finance.      │
+│  Le carry enhancement est un bonus, pas une base.           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Monte Carlo Pricing — Méthodologie
+
+Le pricer calcule la fair value du worst-of put via simulation :
+
+```
+INPUTS :
+────────
+Spot prices :     S₁, S₂, S₃ (via Chainlink Data Streams)
+Implied vols :    σ₁, σ₂, σ₃ (via VolOracle — Chainlink + historique)
+Correlations :    ρ₁₂, ρ₁₃, ρ₂₃ (matrice de corrélation estimée)
+Risk-free rate :  r (USDC lending rate sur Euler ≈ 3-5%)
+KI barrier :      B (e.g., 50%)
+Coupon barrier :  CB (e.g., 70%)
+Autocall trigger: AC (e.g., 100%, step-down 2%)
+Maturity :        T (e.g., 6 mois)
+Observations :    N (e.g., 6 mensuelles)
+Simulations :     10,000 paths (off-chain) / approximation analytique (on-chain)
+
+PROCESSUS MONTE CARLO :
+───────────────────────
+Pour chaque path p = 1 à 10,000 :
+
+  1. Générer 3 GBM corrélés (Cholesky decomposition) :
+
+     dSᵢ/Sᵢ = (r - σᵢ²/2)dt + σᵢ × dWᵢ
+
+     Où les dWᵢ sont corrélés via matrice de Cholesky L :
+     [dW₁]   [1      0      0   ] [dZ₁]
+     [dW₂] = [ρ₁₂    √(1-ρ₁₂²) 0   ] [dZ₂]
+     [dW₃]   [ρ₁₃    ...    ...  ] [dZ₃]
+
+  2. À chaque date d'observation t_k (k = 1..N) :
+
+     perf_i(t_k) = S_i(t_k) / S_i(0)     pour chaque stock i
+     worst(t_k) = min(perf_1, perf_2, perf_3)
+
+     a. Si worst(t_k) ≥ AC(t_k) → autocall :
+        payoff_retail = notional + coupons accumulés
+        payoff_protocol = −coupons (option loss)
+        STOP path
+
+     b. Si worst(t_k) ≥ CB → coupon payé ce mois
+        coupons += coupon_rate × notional / 12
+
+  3. À maturité (t_N) si pas d'autocall :
+
+     a. Si worst(T) ≥ B (pas de KI) :
+        payoff_retail = notional + derniers coupons
+        payoff_protocol = −coupons
+
+     b. Si worst(T) < B (KI) :
+        delivered_value = notional × worst(T) / 100%
+        payoff_retail = delivered_value (xStocks)
+        payoff_protocol = notional − delivered_value − coupons (PUT PAYOFF)
+
+OUTPUT :
+────────
+option_premium = E[payoff_protocol] / notional    (annualisé)
+ki_probability = count(KI paths) / 10,000
+expected_ki_loss = E[notional − delivered_value | KI] × ki_probability
+avg_time_to_autocall = E[autocall_time | autocall]
+```
+
+### Résultats typiques du pricing (nos simulations v24)
+
+| Basket | Vol moy | Corr | KI | CB | Maturity | Put premium (ann) | KI prob |
+|---|---|---|---|---|---|---|---|
+| NVDA/META/TSLA | 52% | 0.55 | 50% | 70% | 6mo | **8.5-10%** | 7-10% |
+| NVDA/META/TSLA | 52% | 0.55 | 50% | 70% | 3mo | **6-8%** | 3-5% |
+| META/AAPL/AMZN | 38% | 0.60 | 50% | 70% | 6mo | **5-7%** | 4-6% |
+| NVDA/TSLA/AMD | 58% | 0.50 | 50% | 70% | 6mo | **10-13%** | 9-12% |
+
+**Sensibilités clefs :**
+- +10% de vol → +2-3% de premium
+- −0.1 de corrélation → +1-2% de premium (worst-of bénéficie de la décorrélation)
+- KI 50% → 60% : +3-4% de premium (mais +15% de KI prob)
+- 3mo → 6mo : +2-4% de premium
+
+### Calcul du coupon — Exemple concret
+
+```
+Basket : NVDAx (σ=55%) / METAx (σ=40%) / TSLAx (σ=60%)
+Corrélations : ρ ≈ 0.55
+KI : 50%, CB : 70%, Maturity : 6mo, Observations : mensuelles
+
+MONTE CARLO (10,000 paths) :
+──────────────────────────
+Put premium = 9.2% annualisé
+KI probability = 8.3%
+Expected KI loss = 3.7% of notional
+Avg time to autocall = 3.1 mois
+
+FORMULE COUPON :
+──────────────
+Option premium :        9.2%
+Safety margin :        −1.7% (protocole edge)
+────────────────────────────
+BASE COUPON :           7.5% ann ← financé par l'option, toujours soutenable
+
+Current funding rate :  12% ann
+Carry share (30%) :    +3.6%
+Cap carry enhance :    +3.0% (cappé)
+────────────────────────────
+CARRY ENHANCEMENT :    +3.0% ann ← bonus DeFi, variable
+
+════════════════════════════
+TOTAL COUPON :          10.5% ann
+════════════════════════════
+
+Breakdown pour le retail :
+┌────────────────────────────────────┐
+│  Base coupon (garanti*) :   7.5%   │
+│  DeFi enhancement :       +3.0%   │
+│  Total :                  10.5%   │
+│                                    │
+│  * garanti = soutenable par        │
+│    l'option economics, pas par     │
+│    un yield externe                │
+└────────────────────────────────────┘
+```
+
+### On-chain vs Off-chain
+
+```
+OFF-CHAIN (avant émission) :
+─────────────────────────
+• Full Monte Carlo 10,000 paths
+• Cholesky decomposition pour corrélations
+• Calcul précis du premium + KI prob + Greeks
+• Signé et publié via Chainlink Functions
+• Vérifiable par quiconque (code open-source)
+
+ON-CHAIN (dans OptionPricer.sol) :
+─────────────────────────────────
+• Approximation analytique (Black-Scholes adapté)
+• Vérifie que le résultat MC est dans les bornes
+• Worst-of adjustment : premium × √n × (1 − ρ/2)
+• Utilisé comme fallback si MC pas disponible
+• Suffisant pour le hackathon, raffiné après
+
+PROCESSUS D'ÉMISSION :
+─────────────────────
+1. MC off-chain calcule : premium = 9.2%, KI prob = 8.3%
+2. Résultat publié on-chain via Chainlink Functions
+3. OptionPricer.sol vérifie : 9.2% dans [6%, 15%] ? ✅
+4. CouponCalculator.sol calcule : base = 7.5%, enhance = 3.0%
+5. AutocallEngine.createNote() avec coupon = 10.5%
+6. Si premium < MIN_PREMIUM (3%) → ISSUANCE BLOQUÉE
+```
+
+---
+
+## 5. Safeguards — Reserve Fund + Issuance Gate
+
+### Issuance Gate (garde-fou émission)
+
+```
+AVANT chaque série de notes, 4 checks obligatoires :
+
+CHECK 1 — OPTION PREMIUM MINIMUM
+─────────────────────────────────
+Si option_premium < 3% annualisé :
+    → ÉMISSION BLOQUÉE
+    → Raison : vol trop basse, le put ne vaut rien
+    → Le coupon serait < 1.5% → pas intéressant pour le retail
+
+CHECK 2 — VOL ORACLE FRESHNESS
+──────────────────────────────
+Si vol_oracle_timestamp > 24h :
+    → ÉMISSION BLOQUÉE
+    → Raison : on ne price pas avec des données stales
+
+CHECK 3 — FUNDING RATE HEALTH
+─────────────────────────────
+Si funding_rate < 0 depuis > 48h :
+    → CARRY ENHANCEMENT = 0 (pas de partage de carry négatif)
+    → Émission autorisée MAIS avec base coupon uniquement
+    → Note clairement taggée "base coupon only"
+
+CHECK 4 — RESERVE FUND LEVEL
+────────────────────────────
+Si reserve_fund < 3% du notional total :
+    → CARRY ENHANCEMENT = 0
+    → Émission autorisée MAIS avec base coupon uniquement
+    → Surplus de carry redirigé 100% vers reserve fund
+```
+
+```solidity
+/// @notice Issuance gate — checks all conditions before allowing note creation
+contract IssuanceGate {
+
+    IOptionPricer public pricer;
+    ICarryEngine public carryEngine;
+    IReserveFund public reserveFund;
+    IVolOracle public volOracle;
+
+    uint256 public constant MIN_PREMIUM = 300;        // 3% ann minimum
+    uint256 public constant MAX_VOL_STALENESS = 24 hours;
+    uint256 public constant FUNDING_NEGATIVE_LIMIT = 48 hours;
+    uint256 public constant MIN_RESERVE_RATIO = 300;   // 3% of notional
+
+    struct IssuanceCheck {
+        bool approved;
+        bool carryAllowed;
+        uint256 maxBaseCoupon;
+        string rejectReason;
+    }
+
+    function checkIssuance(
+        IOptionPricer.PricingParams calldata params,
+        uint256 totalNotionalOutstanding
+    ) external view returns (IssuanceCheck memory) {
+
+        // Check 1: Option premium minimum
+        IOptionPricer.PricingResult memory pricing = pricer.priceNote(params);
+        if (pricing.putPremium < MIN_PREMIUM) {
+            return IssuanceCheck(false, false, 0, "Premium too low");
+        }
+
+        // Check 2: Vol oracle freshness
+        if (block.timestamp - volOracle.lastUpdate() > MAX_VOL_STALENESS) {
+            return IssuanceCheck(false, false, 0, "Vol data stale");
+        }
+
+        // Check 3: Funding rate health
+        bool carryAllowed = true;
+        if (carryEngine.negativeFundingDuration() > FUNDING_NEGATIVE_LIMIT) {
+            carryAllowed = false;
+        }
+
+        // Check 4: Reserve fund level
+        uint256 reserveRatio = (reserveFund.reserveBalance() * 10000)
+            / totalNotionalOutstanding;
+        if (reserveRatio < MIN_RESERVE_RATIO) {
+            carryAllowed = false;
+        }
+
+        return IssuanceCheck({
+            approved: true,
+            carryAllowed: carryAllowed,
+            maxBaseCoupon: pricing.baseCoupon,
+            rejectReason: ""
+        });
+    }
+}
+```
+
+### Reserve Fund — Mécanique
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    RESERVE FUND                           │
+│                                                          │
+│  ENTRÉES :                                               │
+│  ├── 30% du carry (funding rate) en temps normal         │
+│  ├── 100% du carry quand reserve < minimum               │
+│  ├── Surplus option layer (KI payoffs > coupons payés)   │
+│  └── Portion des embedded fees (0.5% du notional)        │
+│                                                          │
+│  SORTIES :                                               │
+│  ├── Couverture déficit option layer si besoin           │
+│  │   (coupons > KI payoffs sur une période)              │
+│  └── Couverture carry enhancement si funding négatif     │
+│                                                          │
+│  NIVEAUX :                                               │
+│  ├── TARGET : 10% du notional outstanding                │
+│  ├── MINIMUM : 3% du notional outstanding                │
+│  └── CRITIQUE : < 1% → pause émissions                   │
+│                                                          │
+│  RÈGLES :                                                │
+│  ├── reserve ≥ target → carry share = 30% (normal)       │
+│  ├── min ≤ reserve < target → carry share = 15%          │
+│  ├── reserve < min → carry share = 0% (base coupon only) │
+│  └── reserve < 1% → PAUSE ÉMISSIONS                      │
+│                                                          │
+│  C'est le même modèle qu'Ethena (Insurance Fund).        │
+│  Ethena a accumulé $60M+ de reserve avec cette logique.  │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Cycle économique du reserve fund
+
+```
+BULL MARKET (funding 15-20%) :
+├── Carry = $75-100k / mois sur $10M TVL
+├── 30% → reserve = $22-30k / mois
+├── Reserve grows → permet carry share élevé → coupon attractif
+└── Cercle vertueux : plus de retail → plus de TVL → plus de carry
+
+MARCHÉ NORMAL (funding 8-12%) :
+├── Carry = $40-60k / mois
+├── 30% → reserve = $12-18k / mois
+├── Reserve stable → carry share maintenu
+└── Coupon compétitif (base + enhancement)
+
+BEAR MARKET (funding 3-5%) :
+├── Carry = $15-25k / mois
+├── Carry share → 0% (reserve under pressure)
+├── Plus de KI events → option layer profitable
+├── KI payoffs → reserve fund (protection)
+└── Coupon réduit au base (option only) → honnête
+
+CRASH (funding négatif) :
+├── Carry = négatif (-1 à -3%)
+├── Reserve fund couvre les pertes carry
+├── Pas de nouvelles émissions si reserve < 1%
+├── KI events massifs → protocole capture put payoffs
+├── Payoffs > coupons → reserve se reconstitue
+└── Résistant car le coupon n'est PAS dépendant du funding
+```
+
+---
+
+## 8. Revenue model v2 — par note $10,000 / 6 mois
 
 ### Flux économiques
 
@@ -264,7 +601,7 @@ Annualisé :             21.8%     12.2%      6.0%
 
 ---
 
-## 5. Architecture technique v2
+## 7. Architecture technique v2
 
 ### Smart Contracts — Structure
 
@@ -272,32 +609,75 @@ Annualisé :             21.8%     12.2%      6.0%
 contracts/
 ├── core/
 │   ├── XYieldVault.sol          ← ERC-4626, deposit/withdraw USDC
-│   ├── AutocallEngine.sol       ← Phoenix logic + OPTION PRICER intégré
-│   ├── NoteToken.sol            ← ERC-1155
-│   └── HedgeManager.sol         ← Spot+perps delta hedge
+│   ├── AutocallEngine.sol       ← Phoenix logic, observations, settlement
+│   ├── NoteToken.sol            ← ERC-1155, represents autocall position
+│   └── HedgeManager.sol         ← Spot+perps delta hedge + carry capture
 │
 ├── pricing/
-│   ├── OptionPricer.sol         ← MC-based worst-of put pricing (NEW)
-│   ├── VolOracle.sol            ← Implied vol feed pour pricing (NEW)
-│   └── CouponCalculator.sol     ← Base coupon + carry enhancement (NEW)
+│   ├── OptionPricer.sol         ← Worst-of put pricing (analytical on-chain)
+│   ├── VolOracle.sol            ← Implied vol + correlation feed
+│   ├── CouponCalculator.sol     ← coupon = premium − margin + carry enhance
+│   └── IssuanceGate.sol         ← Pre-issuance validation (4 checks)
 │
 ├── carry/
-│   ├── CarryEngine.sol          ← Funding rate arb (PiggyBank strat) (RENAMED)
+│   ├── CarryEngine.sol          ← Funding rate arb (PiggyBank strat)
 │   ├── EulerStrategy.sol        ← USDC lending on Euler
-│   └── CarryRouter.sol          ← Allocate between carry strategies (RENAMED)
+│   └── CarryRouter.sol          ← Allocate between Euler / funding arb
 │
 ├── integrations/
 │   ├── AsterAdapter.sol         ← Aster DEX perps interface
-│   ├── ChainlinkPriceFeed.sol   ← Data Streams for xStocks
-│   ├── ChainlinkKeeper.sol      ← Automation for all triggers
-│   ├── OneInchSwapper.sol       ← 1inch for spot trades
-│   └── ERC7579AutoRoll.sol      ← Smart account auto-roll
+│   ├── ChainlinkPriceFeed.sol   ← Data Streams for xStocks prices
+│   ├── ChainlinkKeeper.sol      ← Automation for observations + rebalancing
+│   ├── OneInchSwapper.sol       ← 1inch aggregator for spot trades
+│   └── ERC7579AutoRoll.sol      ← Smart account module for auto-roll
 │
 └── periphery/
     ├── NoteFactory.sol          ← Create new note series
     ├── EpochManager.sol         ← 48h epochs (NAV, rebalance)
-    ├── ReserveFund.sol          ← Buffer pour coupon smoothing (NEW)
+    ├── ReserveFund.sol          ← Coupon smoothing buffer (Ethena model)
     └── FeeCollector.sol         ← Fee collection + distribution
+```
+
+### Flux d'émission (nouveau)
+
+```
+                    IssuanceGate
+                    ┌──────────┐
+                    │ Check 1: │
+                    │ premium  │──── < 3% ? → BLOCKED
+                    │ ≥ 3% ?   │
+                    └────┬─────┘
+                         │ ✅
+                    ┌────▼─────┐
+                    │ Check 2: │
+                    │ vol data │──── stale > 24h ? → BLOCKED
+                    │ fresh ?  │
+                    └────┬─────┘
+                         │ ✅
+                    ┌────▼─────┐
+                    │ Check 3: │
+                    │ funding  │──── negative > 48h ? → carry = 0
+                    │ health   │
+                    └────┬─────┘
+                         │ ✅/⚠️
+                    ┌────▼─────┐
+                    │ Check 4: │
+                    │ reserve  │──── < 3% ? → carry = 0
+                    │ fund     │──── < 1% ? → BLOCKED
+                    └────┬─────┘
+                         │ ✅/⚠️
+                    ┌────▼─────┐
+                    │ Coupon   │
+                    │ Calc     │
+                    │ base +   │
+                    │ enhance  │
+                    └────┬─────┘
+                         │
+                    ┌────▼─────┐
+                    │ Create   │
+                    │ Note     │
+                    │ (ERC1155)│
+                    └──────────┘
 ```
 
 ### Nouveau module : OptionPricer.sol
@@ -495,7 +875,7 @@ contract ReserveFund {
 
 ---
 
-## 6. Euler EVK + Aster DEX (inchangé vs v1)
+## 9. Euler EVK + Aster DEX (inchangé vs v1)
 
 L'intégration technique avec Euler et Aster reste identique à v1.
 La différence est **économique** : ce que le protocole fait avec le yield.
@@ -519,7 +899,7 @@ v2 : funding rate → profit protocole + carry enhancement (solide)
 
 ---
 
-## 7. Le rôle du protocole (clarifié)
+## 10. Le rôle du protocole (clarifié)
 
 ```
 Le protocole est 3 choses :
@@ -546,7 +926,7 @@ Le protocole est 3 choses :
 
 ---
 
-## 8. Scénario worst-case : marché flat + funding bas
+## 11. Scénario worst-case : marché flat + funding bas
 
 ```
 Le seul scénario dangereux :
@@ -576,7 +956,7 @@ v2 : funding = 0% → coupon réduit mais soutenable → réel
 
 ---
 
-## 9. Pitch v2 — institutionnellement crédible
+## 12. Pitch v2 — institutionnellement crédible
 
 ### Le problème
 > $125 milliards d'autocalls émis chaque année. Goldman Sachs prend 3-7% de fees
@@ -605,7 +985,7 @@ v2 : funding = 0% → coupon réduit mais soutenable → réel
 
 ---
 
-## 10. Ce qui change vs v1
+## 13. Ce qui change vs v1
 
 | Aspect | v1 (bullshit risk) | v2 (institutionnel) |
 |---|---|---|
@@ -620,7 +1000,7 @@ v2 : funding = 0% → coupon réduit mais soutenable → réel
 
 ---
 
-## 11. Hackathon — Ce qui impressionne le jury
+## 14. Hackathon — Ce qui impressionne le jury
 
 ```
 1. OPTION PRICER ON-CHAIN
@@ -646,7 +1026,7 @@ v2 : funding = 0% → coupon réduit mais soutenable → réel
 
 ---
 
-## 12. Timeline hackathon (mise à jour v2)
+## 15. Timeline hackathon (mise à jour v2)
 
 | Jour | Task |
 |---|---|
